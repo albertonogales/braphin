@@ -1,0 +1,75 @@
+name: Bug Report
+description: Report a reproducible bug in MRIGraph
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+        **Never attach real patient data.** Use synthetic or anonymised arrays only.
+
+  - type: input
+    id: version
+    attributes:
+      label: MRIGraph version
+      description: Output of `python -c "import braphin; print(braphin.__version__)"`
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version and OS
+      placeholder: "Python 3.11, Ubuntu 22.04"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: pipeline_stage
+    attributes:
+      label: Pipeline stage where the error occurs
+      options:
+        - InputMRIData
+        - PreprocessMRIData
+        - DenoiseMRIData
+        - TransformMRIData
+        - ModelMRIConnectivityData
+        - Atlas / helpers
+        - Unified EEG+fMRI API (eegraph.Graph)
+        - Other / unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproducible example
+      description: Self-contained Python snippet using only synthetic data (numpy arrays). No real NIfTI files.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Full traceback
+      render: text
+    validations:
+      required: true

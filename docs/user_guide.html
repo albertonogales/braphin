@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Guide — BRAPHIN</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body>
+
+<aside class="sidebar">
+  <a class="sidebar-logo" href="index.html">
+    <div class="sidebar-logo-icon">🧠</div>
+    <div class="sidebar-logo-text">
+      <span class="name">BRAPHIN</span>
+      <span class="version">v1.0.0</span>
+    </div>
+  </a>
+
+  <div class="sidebar-section">Getting Started</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="installation.html">Installation</a>
+  </nav>
+
+  <div class="sidebar-section">Documentation</div>
+  <nav>
+    <a href="user_guide.html" class="active">User Guide</a>
+    <nav class="sidebar-sub">
+      <a href="#overview">Pipeline overview</a>
+      <a href="#loading">1 · Loading data</a>
+      <a href="#preprocess">2 · Preprocessing</a>
+      <a href="#denoise">3 · Denoising</a>
+      <a href="#transform">4 · Atlas parcellation</a>
+      <a href="#connectivity">5 · Connectivity</a>
+      <a href="#atlases">Atlases</a>
+      <a href="#unified">Unified EEG+fMRI API</a>
+      <a href="#errors">Error handling</a>
+      <a href="#gnn">GNN output</a>
+    </nav>
+    <a href="api_reference.html">API Reference</a>
+  </nav>
+
+  <div class="sidebar-section">Project</div>
+  <nav>
+    <a href="changelog.html">Changelog</a>
+    <a href="contributing.html">Contributing</a>
+  </nav>
+
+  <div class="sidebar-footer">
+    MIT License &nbsp;·&nbsp; <a href="https://github.com/ufvceiec/EEGRAPH" target="_blank">EEGraph</a><br>
+    Universidad de Alcalá, 2024
+  </div>
+</aside>
+
+<div class="main">
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">BRAPHIN</a> <span>›</span> User Guide</div>
+  <h1>User Guide</h1>
+  <p>This guide walks through every stage of the BRAPHIN pipeline with complete, runnable code examples. By the end you will be able to go from a raw NIfTI file to a NetworkX functional-connectivity graph ready for graph neural network classification.</p>
+
+  <div class="toc">
+    <strong>On this page</strong>
+    <ol>
+      <li><a href="#overview">Pipeline overview</a></li>
+      <li><a href="#loading">Stage 1 — Loading data</a></li>
+      <li><a href="#preprocess">Stage 2 — Preprocessing</a></li>
+      <li><a href="#denoise">Stage 3 — Denoising</a></li>
+      <li><a href="#transform">Stage 4 — Atlas parcellation</a></li>
+      <li><a href="#connectivity">Stage 5 — Connectivity</a></li>
+      <li><a href="#atlases">Working with atlases</a></li>
+      <li><a href="#unified">Unified EEG + fMRI API</a></li>
+      <li><a href="#errors">Error handling</a></li>
+      <li><a href="#gnn">GNN-ready output</a></li>
+    </ol>
+  </div>
+
+  <!-- Overview -->
+  <h2 id="overview">Pipeline Overview</h2>
+  <p>BRAPHIN follows a <strong>linear staged pipeline</strong>. Each stage is a class that accepts a typed <em>bundle</em> from the previous stage and returns a new bundle. You can inspect, save, or branch from any bundle in the chain.</p>
+
+  <pre><code class="language-python">InputMRIData.load()          →  MRIInputBundle
+    ↓
+PreprocessMRIData.run()      →  MRIPreprocessBundle
+    ↓
+DenoiseMRIData.run()         →  MRIDenoiseBundle
+    ↓
+TransformMRIData.run()       →  MRITransformBundle
+    ↓
+ModelMRIConnectivityData.run() →  MRIConnectivityBundle</code></pre>
+
+  <p>All classes and bundles are available from the top-level package:</p>
+  <pre><code class="language-python">from braphin import (
+    InputMRIData, PreprocessMRIData, DenoiseMRIData,
+    TransformMRIData, ModelMRIConnectivityData,
+    InputConfig, PreprocessConfig, DenoiseConfig,
+    AtlasConfig, ConnectivityConfig,
+    MRIInputBundle, MRIPreprocessBundle, MRIDenoiseBundle,
+    MRITransformBundle, MRIConnectivityBundle,
+)</code></pre>
+
+  <!-- Stage 1 -->
+  <h2 id="loading">Stage 1 — Loading Data</h2>
+  <p>
+    <code>InputMRIData</code> validates and loads a 4-D NIfTI file (<code>.nii</code> or <code>.nii.gz</code>)
+    along with any optional auxiliary files.
+  </p>
+
+  <h3>Basic load (no auxiliaries)</h3>
+  <pre><code class="language-python">from braphin import InputMRIData
+
+bundle = InputMRIData("sub-01_task-rest_bold.nii.gz").load()
+
+print(bundle.fmri_path)              # path string
+print(bundle.fmri_metadata["shape"]) # e.g. (91, 109, 91, 200)
+print(bundle.fmri_metadata["ndim"])  # 4</code></pre>
+
+  <h3>Load with confound file</h3>
+  <p>Pass a list of auxiliary paths. Supported extensions: <code>.tsv</code>, <code>.csv</code>, <code>.npy</code>, <code>.json</code>.</p>
+  <pre><code class="language-python">bundle = InputMRIData(
+    "sub-01_task-rest_bold.nii.gz",
+    auxiliary_paths=[
+        "sub-01_task-rest_confounds_timeseries.tsv",
+        "sub-01_task-rest_bold.json",           # optional sidecar
+    ],
+).load()
+
+# Auxiliary data is in a dict keyed by filename
+confounds_array = bundle.auxiliary_files["sub-01_task-rest_confounds_timeseries.tsv"]
+print(confounds_array.shape)   # e.g. (200, 24)</code></pre>
+
+  <div class="note">
+    <strong>BIDS TSV files:</strong> BRAPHIN automatically detects and skips the text header row
+    in BIDS-format confound files (e.g. <code>trans_x&emsp;trans_y&emsp;…</code>).
+    The returned array contains only numeric values — no NaN rows from the header.
+  </div>
+
+  <h3>Custom input configuration</h3>
+  <pre><code class="language-python">from braphin import InputMRIData, InputConfig
+
+cfg = InputConfig(
+    allowed_fmri_extensions=[".nii", ".nii.gz"],
+    allowed_aux_extensions=[".json", ".tsv", ".csv", ".npy"],
+    allow_tabular_inputs=True,
+)
+bundle = InputMRIData("bold.nii.gz", config=cfg).load()</code></pre>
+
+  <!-- Stage 2 -->
+  <h2 id="preprocess">Stage 2 — Preprocessing</h2>
+  <p><code>PreprocessMRIData</code> applies basic data preparation to the raw 4-D array.</p>
+
+  <h3>What it does</h3>
+  <p>All six steps are implemented and execute in this fixed order:</p>
+  <ol>
+    <li><strong>NaN / inf cleaning</strong> — always on. Non-finite values are replaced with <code>0.0</code>.</li>
+    <li><strong>Slice-timing correction</strong> — linear interpolation per slice to a common reference time. Requires <code>tr</code>.</li>
+    <li><strong>Motion correction</strong> — rigid-body (6-parameter) realignment to volume 0 via Powell optimisation.</li>
+    <li><strong>Outlier detection / scrubbing</strong> — DVARS threshold; outlier volumes are interpolated from neighbours (or just marked).</li>
+    <li><strong>Global intensity normalisation</strong> — z-score over the whole 4-D volume.</li>
+    <li><strong>Spatial smoothing</strong> — isotropic Gaussian kernel; FWHM converted to per-axis sigma using NIfTI voxel sizes.</li>
+  </ol>
+
+  <h3>Example — all steps enabled</h3>
+  <pre><code class="language-python">from braphin import PreprocessMRIData, PreprocessConfig
+
+pp_bundle = PreprocessMRIData(
+    input_bundle,
+    PreprocessConfig(
+        apply_slice_timing=True,      tr=2.0,            # TR in seconds
+        apply_motion_correction=True,
+        apply_outlier_detection=True, outlier_threshold_dvars=1.5,
+        apply_normalization=True,
+        apply_smoothing=True,         smoothing_fwhm=6.0,
+    ),
+).run()
+
+print(pp_bundle.applied_steps)
+# ['slice_timing_correction', 'motion_correction', 'outlier_detection',
+#  'global_intensity_normalization', 'spatial_smoothing']
+print(pp_bundle.motion_params.shape)    # (200, 6) — [tx,ty,tz,rx,ry,rz]
+print(pp_bundle.outlier_mask.sum())     # number of flagged volumes</code></pre>
+
+  <h3>Minimal example — normalisation only</h3>
+  <pre><code class="language-python">pp_bundle = PreprocessMRIData(
+    input_bundle,
+    PreprocessConfig(
+        apply_slice_timing=False,
+        apply_motion_correction=False,
+        apply_outlier_detection=False,
+        apply_normalization=True,
+        apply_smoothing=False,
+    ),
+).run()
+print(pp_bundle.applied_steps)    # ['global_intensity_normalization']</code></pre>
+
+  <h3>Inspecting metadata</h3>
+  <pre><code class="language-python">meta = pp_bundle.preprocess_metadata
+print(meta["original_shape"])           # (91, 109, 91, 200)
+print(meta["num_voxels"])               # 907163
+print(meta["num_timepoints"])           # 200
+print(meta["non_finite_values_replaced"])  # 0 (if data is clean)</code></pre>
+
+  <!-- Stage 3 -->
+  <h2 id="denoise">Stage 3 — Denoising</h2>
+  <p><code>DenoiseMRIData</code> regresses out nuisance confounds using ordinary least squares.</p>
+
+  <h3>How confound regression works</h3>
+  <p>Given a confound matrix <strong>C</strong> (T × K) and the voxel time-series matrix <strong>Y</strong> (T × V), BRAPHIN solves the normal equations and returns the residuals:</p>
+  <pre><code class="language-python">β = (CᵀC)⁻¹ Cᵀ Y       # via np.linalg.lstsq
+Y_clean = Y − C β</code></pre>
+
+  <h3>Automatic confound file detection</h3>
+  <p>The denoising stage searches the auxiliary files dictionary inherited from the input bundle. It tries each <code>.tsv</code> / <code>.csv</code> / <code>.npy</code> file and uses the first one whose number of rows matches the number of time points. Incompatible files (e.g. wrong number of rows) are silently skipped.</p>
+
+  <pre><code class="language-python">from braphin import DenoiseMRIData, DenoiseConfig
+
+dn_bundle = DenoiseMRIData(
+    pp_bundle,
+    DenoiseConfig(regress_confounds=True),
+).run()
+
+print(dn_bundle.applied_steps)
+# ['confound_regression']
+
+print(dn_bundle.denoise_metadata["confounds_file_used"])
+# 'sub-01_task-rest_confounds_timeseries.tsv'
+
+print(dn_bundle.denoise_metadata["confounds_shape"])
+# (200, 24)</code></pre>
+
+  <h3>Bandpass filtering</h3>
+  <p>Zero-phase 5th-order Butterworth filter. Requires <code>tr</code> (seconds).</p>
+  <pre><code class="language-python">dn_bundle = DenoiseMRIData(
+    pp_bundle,
+    DenoiseConfig(
+        regress_confounds=True,
+        apply_bandpass=True,
+        tr=2.0,                   # repetition time in seconds
+        bandpass_low=0.008,       # Hz (default)
+        bandpass_high=0.1,        # Hz (default — Biswal 1995 resting-state band)
+    ),
+).run()
+print(dn_bundle.applied_steps)
+# ['confound_regression', 'bandpass_filtering']</code></pre>
+
+  <h3>Scrubbing</h3>
+  <p>Interpolates (or marks) outlier volumes detected by DVARS. When <code>PreprocessMRIData</code> has already run outlier detection, the stored mask is reused; otherwise DVARS is recomputed on the denoised signal.</p>
+  <pre><code class="language-python">dn_bundle = DenoiseMRIData(
+    pp_bundle,
+    DenoiseConfig(regress_confounds=True, apply_scrubbing=True),
+).run()
+print(dn_bundle.applied_steps)
+# ['confound_regression', 'scrubbing']</code></pre>
+
+  <h3>Skipping denoising entirely</h3>
+  <pre><code class="language-python">dn_bundle = DenoiseMRIData(
+    pp_bundle,
+    DenoiseConfig(regress_confounds=False, apply_scrubbing=False, apply_bandpass=False),
+).run()
+# applied_steps will be empty — data passes through unchanged</code></pre>
+
+  <!-- Stage 4 -->
+  <h2 id="transform">Stage 4 — Atlas Parcellation</h2>
+  <p><code>TransformMRIData</code> applies a brain atlas to the denoised fMRI and extracts one mean time series per ROI.</p>
+
+  <h3>Using a bundled atlas</h3>
+  <pre><code class="language-python">from braphin import TransformMRIData, AtlasConfig
+
+tx_bundle = TransformMRIData(
+    dn_bundle,
+    config=AtlasConfig(atlas_name="aal"),  # 116 ROIs
+).run()
+
+print(tx_bundle.roi_time_series.shape)     # (116, 200)
+print(tx_bundle.roi_labels[:3])            # ['Precentral_L', 'Precentral_R', ...]
+print(tx_bundle.centroid_coordinate_space) # 'world'</code></pre>
+
+  <h3>Automatic atlas resampling</h3>
+  <p>If the atlas and fMRI have different voxel sizes or field-of-view, BRAPHIN automatically resamples the atlas to the fMRI space using nearest-neighbour interpolation (via nibabel <code>resample_from_to</code> with <code>order=0</code>). Label integrity is preserved.</p>
+
+  <h3>Using a custom atlas path</h3>
+  <pre><code class="language-python">tx_bundle = TransformMRIData(
+    dn_bundle,
+    config=AtlasConfig(
+        atlas_path="my_custom_atlas.nii.gz",
+        roi_labels=["Region_A", "Region_B", ...],  # optional
+    ),
+).run()</code></pre>
+
+  <h3>Passing a NumPy array or NIfTI image directly</h3>
+  <pre><code class="language-python">import numpy as np
+import nibabel as nib
+
+# Build a toy atlas: 4 cubic ROIs in an 8×8×8 volume
+atlas_array = np.zeros((8, 8, 8), dtype=np.int16)
+atlas_array[0:4, 0:4, 0:4] = 1
+atlas_array[4:8, 0:4, 0:4] = 2
+atlas_array[0:4, 4:8, 4:8] = 3
+atlas_array[4:8, 4:8, 4:8] = 4
+
+tx_bundle = TransformMRIData(
+    dn_bundle,
+    atlas_data=atlas_array,
+    config=AtlasConfig(),      # atlas_name=None
+).run()
+
+print(tx_bundle.roi_time_series.shape)      # (4, T)
+print(tx_bundle.centroid_coordinate_space)  # 'voxel' (no affine available)</code></pre>
+
+  <h3>ROI centroid caching</h3>
+  <p>For bundled atlases, world-space centroids are pre-computed and stored as JSON files in <code>braphin/atlas_centroids/</code>. The cache is used automatically and avoids recomputing centroids on every run. Custom atlases compute centroids from the data at runtime.</p>
+
+  <!-- Stage 5 -->
+  <h2 id="connectivity">Stage 5 — Connectivity</h2>
+  <p><code>ModelMRIConnectivityData</code> computes a ROI × ROI connectivity matrix and builds a NetworkX graph.</p>
+
+  <h3>Pearson correlation</h3>
+  <pre><code class="language-python">from braphin import ModelMRIConnectivityData, ConnectivityConfig
+
+conn_bundle = ModelMRIConnectivityData(
+    tx_bundle,
+    ConnectivityConfig(method="pearson_correlation", threshold=0.3),
+).run()
+
+matrix = conn_bundle.connectivity_matrix   # ndarray (116, 116)
+graph  = conn_bundle.graph                 # networkx.Graph</code></pre>
+
+  <h3>Cross-correlation</h3>
+  <p>Normalised cross-correlation at the lag that maximises <em>|r|</em> within a window of 10% of the signal length:</p>
+  <pre><code class="language-python">conn_bundle = ModelMRIConnectivityData(
+    tx_bundle,
+    ConnectivityConfig(method="cross_correlation"),
+).run()</code></pre>
+
+  <h3>Corrected cross-correlation</h3>
+  <p>Antisymmetric measure: <code>corCC(x, y) = R_xy(+lag) − R_xy(−lag)</code>. Satisfies <code>corCC(x, y) = −corCC(y, x)</code>. The resulting matrix is <em>not</em> symmetric:</p>
+  <pre><code class="language-python">conn_bundle = ModelMRIConnectivityData(
+    tx_bundle,
+    ConnectivityConfig(method="corr_cross_correlation"),
+).run()</code></pre>
+
+  <h3>Threshold</h3>
+  <p>Set <code>threshold</code> to keep only edges with absolute weight ≥ threshold:</p>
+  <pre><code class="language-python">conn_bundle = ModelMRIConnectivityData(
+    tx_bundle,
+    ConnectivityConfig(method="pearson_correlation", threshold=0.5),
+).run()
+# Edges with |r| < 0.5 are removed from the graph</code></pre>
+
+  <h3>All connectivity methods</h3>
+  <table>
+    <thead><tr><th>Method key</th><th>Description</th><th>Symmetric</th></tr></thead>
+    <tbody>
+      <tr><td><code>pearson_correlation</code></td><td>Pearson r between ROI time series</td><td>✅ Yes</td></tr>
+      <tr><td><code>cross_correlation</code></td><td>Normalised cross-correlation (max-lag)</td><td>❌ No</td></tr>
+      <tr><td><code>corr_cross_correlation</code></td><td>Corrected cross-correlation (antisymmetric)</td><td>❌ No (antisymmetric)</td></tr>
+    </tbody>
+  </table>
+
+  <pre><code class="language-python"># Programmatically list all available methods
+from braphin import list_connectivity_measures
+print(list_connectivity_measures())
+# ['pearson_correlation', 'cross_correlation', 'corr_cross_correlation']</code></pre>
+
+  <!-- Atlases -->
+  <h2 id="atlases">Working with Atlases</h2>
+
+  <h3>Bundled atlases</h3>
+  <table>
+    <thead><tr><th>Name</th><th>ROIs</th><th>Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>aal</code></td><td>116</td><td>Anatomical</td><td>Automated Anatomical Labeling — classic anatomical parcellation</td></tr>
+      <tr><td><code>schaefer_100</code></td><td>100</td><td>Functional</td><td>Schaefer 2018 — low granularity</td></tr>
+      <tr><td><code>schaefer_200</code></td><td>200</td><td>Functional</td><td>Schaefer 2018 — medium granularity</td></tr>
+      <tr><td><code>schaefer_400</code></td><td>400</td><td>Functional</td><td>Schaefer 2018 — high granularity</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Atlas registry helpers</h3>
+  <pre><code class="language-python">from braphin.atlas import (
+    list_supported_atlases,
+    get_atlas_definition,
+    get_atlas_roi_name_map,
+)
+
+print(list_supported_atlases())
+# ['aal', 'schaefer_100', 'schaefer_200', 'schaefer_400']
+
+defn = get_atlas_definition("aal")
+print(defn.num_rois)        # 116
+print(defn.description)     # "Atlas anatómico clásico..."
+
+name_map = get_atlas_roi_name_map("aal")
+print(name_map[1])   # 'Precentral_L'
+print(name_map[2])   # 'Precentral_R'</code></pre>
+
+  <!-- Unified API -->
+  <h2 id="unified">Unified EEG + fMRI API</h2>
+  <p>BRAPHIN integrates with EEGraph through the same <code>Graph</code> interface used for EEG data:</p>
+
+  <h3>fMRI via unified API</h3>
+  <pre><code class="language-python">from eegraph.graph import Graph
+from braphin import AtlasConfig
+
+G = Graph()
+G.load_data("sub-01_task-rest_bold.nii.gz", modality="fmri")
+
+graph, matrix = G.modelate(
+    window_size=None,
+    connectivity="pearson_correlation",
+    threshold=0.3,
+    atlas_config=AtlasConfig(atlas_name="schaefer_100"),
+)</code></pre>
+
+  <h3>EEG via unified API (unchanged from EEGraph)</h3>
+  <pre><code class="language-python">G = Graph()
+G.load_data("sub-01_eeg.edf", modality="eeg")
+graph, matrix = G.modelate(window_size=2, connectivity="pearson_correlation")</code></pre>
+
+  <!-- Error handling -->
+  <h2 id="errors">Error Handling</h2>
+  <p>All BRAPHIN errors inherit from <code>BRAPHINError</code>. Use specific subclasses for fine-grained handling:</p>
+
+  <pre><code class="language-python">from braphin.exceptions import (
+    BRAPHINError,
+    MRIInputError,
+    MRIFormatError,
+    AtlasError,
+    PreprocessingError,
+    DenoisingError,
+    TransformationError,
+    ConnectivityError,
+)
+
+try:
+    bundle = InputMRIData("missing_file.nii.gz").load()
+except MRIInputError as e:
+    print(f"Input problem: {e}")        # file not found / bad extension
+
+try:
+    conn = ModelMRIConnectivityData(
+        tx_bundle,
+        ConnectivityConfig(method="unknown_method"),
+    ).run()
+except ConnectivityError as e:
+    print(f"Connectivity error: {e}")   # unsupported method
+
+# Catch all BRAPHIN errors at once
+try:
+    run_full_pipeline(path)
+except BRAPHINError as e:
+    print(f"Pipeline failed: {type(e).__name__}: {e}")</code></pre>
+
+  <h3>Exception hierarchy</h3>
+  <table>
+    <thead><tr><th>Exception</th><th>Raised when</th></tr></thead>
+    <tbody>
+      <tr><td><code>MRIInputError</code></td><td>File not found, unsupported extension</td></tr>
+      <tr><td><code>MRIFormatError</code></td><td>Wrong NIfTI dimensionality, unexpected shape</td></tr>
+      <tr><td><code>AtlasError</code></td><td>Unknown atlas name, shape mismatch between atlas and fMRI</td></tr>
+      <tr><td><code>PreprocessingError</code></td><td>Invalid bundle, zero-variance signal (cannot normalise)</td></tr>
+      <tr><td><code>DenoisingError</code></td><td>No compatible confound file found, regression failure</td></tr>
+      <tr><td><code>TransformationError</code></td><td>Atlas–fMRI space mismatch, empty ROIs</td></tr>
+      <tr><td><code>ConnectivityError</code></td><td>Unsupported method, matrix computation failure</td></tr>
+    </tbody>
+  </table>
+
+  <!-- GNN -->
+  <h2 id="gnn">GNN-Ready Output</h2>
+  <p>The connectivity bundle's NetworkX graph has node attributes (centroid positions) and edge attributes (connectivity weights). Converting to PyTorch Geometric:</p>
+
+  <pre><code class="language-python">import torch
+from torch_geometric.utils import from_networkx
+
+G_nx = conn_bundle.graph   # networkx.Graph
+
+# Convert to PyTorch Geometric Data object
+data = from_networkx(G_nx, group_node_attrs=["pos"], group_edge_attrs=["weight"])
+
+print(data.x.shape)          # (116, 3) — node positions (world-space centroids)
+print(data.edge_index.shape) # (2, num_edges)
+print(data.edge_attr.shape)  # (num_edges, 1)</code></pre>
+
+  <div class="note">
+    <strong>Requires:</strong> <code>torch-geometric</code>. Install with
+    <code>pip install ".[gnn]"</code>.
+    See the <a href="installation.html#extras">Installation page</a> for CUDA-specific notes.
+  </div>
+
+  <p>See the <code>Examples/</code> folder in the repository for complete Jupyter notebooks demonstrating Parkinson's disease classification using GNNs built on BRAPHIN connectivity graphs.</p>
+
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# Core requirements for the braphin package
+# Install with: pip install -r requirements.txt
+
+nibabel>=5.0
+numpy>=1.24
+scipy>=1.10
+networkx>=3.0

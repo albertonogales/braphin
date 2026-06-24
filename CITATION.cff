@@ -1,0 +1,67 @@
+cff-version: 1.2.0
+message: "If you use BRAPHIN in your research, please cite it using the metadata below."
+
+title: "BRAPHIN: A Python Library for fMRI Functional Connectivity Graph Analysis"
+version: 1.0.0
+date-released: "2024-01-01"
+
+authors:
+  - family-names: Ortega Lozano
+    given-names: David
+    affiliation: Universidad de Alcalá
+    orcid: ""          # add ORCID if available: https://orcid.org/0000-0000-0000-0000
+
+repository-code: "https://github.com/ufvceiec/braphin"
+url: "https://ufvceiec.github.io/braphin/"
+license: MIT
+
+abstract: >
+  BRAPHIN is a Python library for resting-state fMRI functional connectivity
+  analysis. It implements a five-stage pipeline (NIfTI loading, preprocessing,
+  confound regression, atlas parcellation, and connectivity modelling) that
+  produces NetworkX graphs ready for downstream Graph Neural Network analyses.
+  The library extends EEGraph to support fMRI data, providing a unified API
+  for both modalities. Four brain atlases are bundled (AAL and Schaefer
+  100/200/400). Three connectivity measures are implemented: Pearson
+  correlation, cross-correlation, and corrected cross-correlation.
+
+keywords:
+  - fMRI
+  - functional connectivity
+  - neuroimaging
+  - brain graphs
+  - graph neural networks
+  - resting-state
+  - atlas parcellation
+  - Python
+
+references:
+  - type: software
+    title: "EEGraph: A Python library to model EEG data as graphs"
+    authors:
+      - family-names: CEIEC Research Group
+    repository-code: "https://github.com/ufvceiec/EEGRAPH"
+
+  - type: article
+    title: "Automated Anatomical Labeling of Activations in SPM Using a Macroscopic Anatomical Parcellation of the MNI MRI Single-Subject Brain"
+    authors:
+      - family-names: Tzourio-Mazoyer
+        given-names: N.
+    journal: NeuroImage
+    year: 2002
+    volume: 15
+    issue: 1
+    pages: 273-289
+    doi: "10.1006/nimg.2001.0978"
+
+  - type: article
+    title: "Local-Global Parcellation of the Human Cerebral Cortex from Intrinsic Functional Connectivity MRI"
+    authors:
+      - family-names: Schaefer
+        given-names: Alexander
+    journal: Cerebral Cortex
+    year: 2018
+    volume: 28
+    issue: 9
+    pages: 3095-3114
+    doi: "10.1093/cercor/bhx179"

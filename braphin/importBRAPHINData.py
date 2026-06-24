@@ -1,0 +1,151 @@
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Dict, List, Optional, Union
+
+import numpy as np
+
+from .config import InputConfig
+from .exceptions import BRAPHINInputError
+from .io.nifti import get_nifti_metadata, load_nifti_file, validate_fmri_nifti
+from .io.tabular import load_tabular_file
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class BRAPHINInputBundle:
+    """
+    Internal data structure representing the loaded input data.
+
+    Fields
+    ------
+    fmri_path : str or None
+        Path to the main fMRI file.
+    fmri_image : object or None
+        Loaded NIfTI image object.
+    fmri_metadata : dict or None
+        Basic metadata extracted from the NIfTI image.
+    auxiliary_files : dict
+        Dictionary mapping filename to loaded content for each auxiliary file.
+    """
+    fmri_path: Optional[str] = None
+    fmri_image: Optional[object] = None
+    fmri_metadata: Optional[Dict[str, object]] = None
+    auxiliary_files: Dict[str, object] = field(default_factory=dict)
+
+
+class InputBRAPHINData:
+    """
+    Stage 1 of the BRAPHIN pipeline: fMRI data loading.
+
+    Accepts a path to the main fMRI file and an optional list of auxiliary
+    files (BIDS-format TSV confound matrices, JSON sidecars, CSV, or NumPy
+    arrays). Validates extensions, loads all data, and returns an
+    ``BRAPHINInputBundle``.
+    """
+
+    def __init__(
+        self,
+        fmri_path: Union[str, Path],
+        auxiliary_paths: Optional[List[Union[str, Path]]] = None,
+        config: Optional[InputConfig] = None,
+    ):
+        self.fmri_path = Path(fmri_path)
+        self.auxiliary_paths = [Path(p) for p in auxiliary_paths] if auxiliary_paths else []
+        self.config = config if config is not None else InputConfig()
+
+    def load(self) -> BRAPHINInputBundle:
+        """
+        Execute the full input loading phase.
+
+        Returns
+        -------
+        BRAPHINInputBundle
+            Bundle containing the loaded NIfTI image, its metadata, and all
+            auxiliary files.
+        """
+        self._validate_main_input()
+
+        fmri_image = load_nifti_file(self.fmri_path)
+        validate_fmri_nifti(fmri_image)
+        fmri_metadata = get_nifti_metadata(fmri_image)
+
+        auxiliary_data = self._load_auxiliary_files()
+
+        bundle = BRAPHINInputBundle(
+            fmri_path=str(self.fmri_path),
+            fmri_image=fmri_image,
+            fmri_metadata=fmri_metadata,
+            auxiliary_files=auxiliary_data,
+        )
+
+        return bundle
+
+    def _validate_main_input(self) -> None:
+        """Validate the main fMRI file path and extension."""
+        if not self.fmri_path.exists():
+            raise BRAPHINInputError(f"fMRI file not found: {self.fmri_path}")
+
+        # Use endswith() rather than Path.suffixes to avoid false failures on
+        # filenames that contain extra dots (e.g. sub-01.2_bold.nii.gz → suffixes
+        # would give ['.2', '.nii', '.gz'] instead of ['.nii', '.gz']).
+        name_lower = self.fmri_path.name.lower()
+        suffix = next(
+            (ext for ext in self.config.allowed_fmri_extensions if name_lower.endswith(ext.lower())),
+            None,
+        )
+
+        if suffix is None:
+            raise BRAPHINInputError(
+                f"Unsupported fMRI file extension: {self.fmri_path.name}. "
+                f"Supported extensions: {', '.join(self.config.allowed_fmri_extensions)}"
+            )
+
+    def _load_auxiliary_files(self) -> Dict[str, object]:
+        """Load and return all auxiliary files."""
+        loaded_aux: Dict[str, object] = {}
+
+        for aux_path in self.auxiliary_paths:
+            if not aux_path.exists():
+                raise BRAPHINInputError(f"Auxiliary file not found: {aux_path}")
+
+            suffix = aux_path.suffix.lower()
+
+            if suffix not in self.config.allowed_aux_extensions:
+                raise BRAPHINInputError(
+                    f"Unsupported auxiliary file extension: {aux_path.name}. "
+                    f"Supported extensions: {', '.join(self.config.allowed_aux_extensions)}"
+                )
+
+            # JSON: loaded as raw text; parse downstream if structured access is needed.
+            if suffix == ".json":
+                loaded_aux[aux_path.name] = aux_path.read_text(encoding="utf-8")
+                continue
+
+            # CSV / TSV / NPY: generic tabular load.
+            if suffix in {".csv", ".tsv", ".npy"}:
+                loaded_aux[aux_path.name] = load_tabular_file(aux_path)
+                continue
+
+        return loaded_aux
+
+    def display_info(self, bundle: BRAPHINInputBundle) -> None:
+        """
+        Log a summary of the loaded input data.
+
+        Useful for debugging and pipeline transparency.
+        """
+        logger.info("[BRAPHIN] Input loaded successfully")
+        logger.info("  fMRI path: %s", bundle.fmri_path)
+
+        if bundle.fmri_metadata is not None:
+            logger.info("  fMRI shape: %s", bundle.fmri_metadata.get("shape"))
+            logger.info("  Number of dimensions: %s", bundle.fmri_metadata.get("ndim"))
+
+        if bundle.auxiliary_files:
+            logger.info("  Auxiliary files detected:")
+            for file_name in bundle.auxiliary_files:
+                logger.info("    - %s", file_name)
+        else:
+            logger.info("  No auxiliary files provided.")

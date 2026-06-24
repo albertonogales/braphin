@@ -1,0 +1,125 @@
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+
+# ── Testing & coverage ───────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.cover
+.hypothesis/
+
+# ── Type checking ────────────────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyright/
+
+# ── IDEs & editors ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Jupyter notebooks ────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ── Neuroimaging / data files ─────────────────────────────────────────────────
+# Never commit real subject data — this is a hard safeguard
+*.nii
+*.nii.gz
+*.mgh
+*.mgz
+*.img
+*.hdr
+
+# Confound / events files that may contain subject-level information
+*_confounds_timeseries.tsv
+*_events.tsv
+
+# Allow bundled atlas NIfTI files that ship with the package
+!braphin/atlases/*.nii
+!braphin/atlases/*.nii.gz
+!mrigraph/atlases/*.nii
+!mrigraph/atlases/*.nii.gz
+
+# ── Build artefacts ──────────────────────────────────────────────────────────
+*.so
+*.dylib
+*.dll
+*.pyd
+
+# Sphinx documentation build
+docs/_build/
+docs/api/
+
+# ── Temporary files ──────────────────────────────────────────────────────────
+tmp_*/
+temp_*/
+scratch/
+*.tmp
+*.bak
+*.log
+
+# ── Secrets & credentials ─────────────────────────────────────────────────────
+.env
+.env.*
+secrets.json
+credentials.json
+
+# ── AI assistant tooling (never commit these) ─────────────────────────────────
+.claude/
+.cursor/
+.aider*
+.copilot/
+
+# ── Experiment artefacts (project-internal, not part of the library) ──────────
+experiment_notebooks/
+experiment_gnn_search/
+experiment_optionA/
+results/
+*.log
+z/
+
+# Standalone experiment scripts at repo root
+GNN_neurocon_para_test.ipynb
+GNN_openneuro_para_test.py
+GNN_openneuro_para_test_randomsearch_kfold.py
+GNN_parkinson_patient_vs_control.ipynb
+archivos_para_GNN.py
+preprocesamiento_gnn_fmri.py
+test_eegraph_eeg_v2.py
+test_eegraph_fmri_v3.py
+
+# Thesis / paper LaTeX source (personal documents)
+main.tex
+main.pdf
+main.log
+paper.md
+paper.bib
+PFG_Memoria_DavidOrtegaLozano.pdf
+
+# Optuna / SQLite databases
+*.db

@@ -1,0 +1,56 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+labels: ["enhancement"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the [Unreleased section of the Changelog](../../blob/main/CHANGELOG.md#unreleased)
+        first — your feature may already be planned.
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Which pipeline stage would this affect?
+      options:
+        - Stage 1 — Loading (InputMRIData)
+        - Stage 2 — Preprocessing (PreprocessMRIData)
+        - Stage 3 — Denoising (DenoiseMRIData)
+        - Stage 4 — Atlas parcellation (TransformMRIData)
+        - Stage 5 — Connectivity (ModelMRIConnectivityData)
+        - Atlas registry
+        - Unified API (eegraph.Graph)
+        - GNN output
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Neuroimaging use case
+      description: Describe the scientific or technical motivation. Which analysis does this enable?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like it to work? Pseudocode or API sketches are welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you considered (e.g. using nilearn, scipy directly).
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Relevant papers, toolbox implementations, or links.

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Installation — BRAPHIN</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body>
+
+<aside class="sidebar">
+  <a class="sidebar-logo" href="index.html">
+    <div class="sidebar-logo-icon">🧠</div>
+    <div class="sidebar-logo-text">
+      <span class="name">BRAPHIN</span>
+      <span class="version">v1.0.0</span>
+    </div>
+  </a>
+
+  <div class="sidebar-section">Getting Started</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="installation.html" class="active">Installation</a>
+  </nav>
+
+  <div class="sidebar-section">Documentation</div>
+  <nav>
+    <a href="user_guide.html">User Guide</a>
+    <a href="api_reference.html">API Reference</a>
+  </nav>
+
+  <div class="sidebar-section">Project</div>
+  <nav>
+    <a href="changelog.html">Changelog</a>
+    <a href="contributing.html">Contributing</a>
+  </nav>
+
+  <div class="sidebar-footer">
+    MIT License &nbsp;·&nbsp; <a href="https://github.com/ufvceiec/EEGRAPH" target="_blank">EEGraph</a><br>
+    Universidad de Alcalá, 2024
+  </div>
+</aside>
+
+<div class="main">
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">BRAPHIN</a> <span>›</span> Installation</div>
+  <h1>Installation</h1>
+  <p>BRAPHIN requires <strong>Python 3.9 or later</strong>. It is tested on Linux, macOS, and Windows.</p>
+
+  <div class="toc">
+    <strong>On this page</strong>
+    <ol>
+      <li><a href="#requirements">Requirements</a></li>
+      <li><a href="#core">Core install</a></li>
+      <li><a href="#extras">Optional extras</a></li>
+      <li><a href="#source">Install from source</a></li>
+      <li><a href="#verify">Verifying your install</a></li>
+      <li><a href="#dev">Developer install</a></li>
+    </ol>
+  </div>
+
+  <!-- Requirements -->
+  <h2 id="requirements">Requirements</h2>
+  <p>The core library depends only on well-established scientific Python packages:</p>
+
+  <table>
+    <thead>
+      <tr><th>Package</th><th>Minimum version</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>nibabel</code></td><td>≥ 5.0</td><td>NIfTI file loading and resampling</td></tr>
+      <tr><td><code>numpy</code></td><td>≥ 1.24</td><td>Array operations throughout the pipeline</td></tr>
+      <tr><td><code>scipy</code></td><td>≥ 1.10</td><td>Cross-correlation computation</td></tr>
+      <tr><td><code>networkx</code></td><td>≥ 3.0</td><td>Graph construction and export</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Core -->
+  <h2 id="core">Core Install</h2>
+  <p>Install the core fMRI library (no EEG or GNN dependencies):</p>
+  <pre><code class="language-bash">pip install -r requirements.txt</code></pre>
+
+  <p>Or, if you have a local checkout with <code>pyproject.toml</code>:</p>
+  <pre><code class="language-bash">pip install .</code></pre>
+
+  <!-- Extras -->
+  <h2 id="extras">Optional Extras</h2>
+
+  <h3>EEG support</h3>
+  <p>Adds MNE-Python and supporting packages for the original EEGraph EEG pipeline:</p>
+  <pre><code class="language-bash">pip install -r requirements-eeg.txt
+# — or via pyproject extras —
+pip install ".[eeg]"</code></pre>
+
+  <table>
+    <thead><tr><th>Package</th><th>Version</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>mne</code></td><td>≥ 1.5</td><td>EEG/MEG data I/O and signal processing</td></tr>
+      <tr><td><code>pandas</code></td><td>≥ 2.0</td><td>Tabular data handling in EEG pipeline</td></tr>
+      <tr><td><code>antropy</code></td><td>≥ 0.1.6</td><td>Entropy measures (EEG connectivity)</td></tr>
+      <tr><td><code>plotly</code></td><td>≥ 5.0</td><td>Interactive graph visualisation</td></tr>
+      <tr><td><code>scot</code></td><td>≥ 0.19</td><td>Spectral connectivity (EEG)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>GNN support</h3>
+  <p>Adds PyTorch and PyTorch Geometric for graph neural network classification:</p>
+  <pre><code class="language-bash">pip install -r requirements-gnn.txt
+# — or via pyproject extras —
+pip install ".[gnn]"</code></pre>
+
+  <table>
+    <thead><tr><th>Package</th><th>Version</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>torch</code></td><td>≥ 2.0</td><td>PyTorch deep learning framework</td></tr>
+      <tr><td><code>torch-geometric</code></td><td>≥ 2.4</td><td>GNN layers and data loaders</td></tr>
+      <tr><td><code>scikit-learn</code></td><td>≥ 1.3</td><td>Train/test splits, metrics</td></tr>
+      <tr><td><code>pandas</code></td><td>≥ 2.0</td><td>Tabular data handling</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>PyTorch install note:</strong> <code>torch-geometric</code> has specific version
+    requirements per CUDA version. Follow the
+    <a href="https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html" target="_blank">official PyG installation guide</a>
+    for your hardware before running <code>pip install ".[gnn]"</code>.
+  </div>
+
+  <!-- Source -->
+  <h2 id="source">Install from Source</h2>
+  <p>Clone the repository and install in editable mode so changes to the source are immediately reflected:</p>
+  <pre><code class="language-bash">git clone https://github.com/&lt;your-org&gt;/braphin.git
+cd braphin
+pip install -e .</code></pre>
+
+  <p>To include all optional extras at once:</p>
+  <pre><code class="language-bash">pip install -e ".[eeg,gnn,dev]"</code></pre>
+
+  <!-- Verify -->
+  <h2 id="verify">Verifying Your Install</h2>
+  <p>A successful install should import without errors and show the version:</p>
+  <pre><code class="language-python">import braphin
+print(braphin.__version__)   # 1.0.0
+
+# Confirm bundled atlases are available
+from braphin.atlas import list_supported_atlases
+print(list_supported_atlases())
+# ['aal', 'schaefer_100', 'schaefer_200', 'schaefer_400']</code></pre>
+
+  <!-- Dev -->
+  <h2 id="dev">Developer Install</h2>
+  <p>To run the test suite and contribute to BRAPHIN:</p>
+  <pre><code class="language-bash"># 1. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+
+# 2. Install in editable mode with dev dependencies
+pip install -e ".[dev]"
+# — or —
+pip install -r requirements-dev.txt && pip install -e .
+
+# 3. Run the test suite
+pytest                                   # 387 tests
+pytest --cov=braphin --cov-report=term-missing   # with coverage</code></pre>
+
+  <div class="tip">
+    <strong>Tip:</strong> All 387 tests use synthetic data — no NIfTI files or internet access required.
+  </div>
+
+  <div class="note">
+    <strong>Next:</strong> Jump to the <a href="user_guide.html">User Guide</a> to start processing fMRI data.
+  </div>
+
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Optional requirements for the EEG module (eegraph package)
+# Install with: pip install -r requirements-eeg.txt
+
+-r requirements.txt
+
+mne>=1.5
+pandas>=2.0
+antropy>=0.1.6
+plotly>=5.0
+scot>=0.19

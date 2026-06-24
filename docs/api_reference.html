@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Reference — BRAPHIN</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body>
+
+<aside class="sidebar">
+  <a class="sidebar-logo" href="index.html">
+    <div class="sidebar-logo-icon">🧠</div>
+    <div class="sidebar-logo-text">
+      <span class="name">BRAPHIN</span>
+      <span class="version">v1.0.0</span>
+    </div>
+  </a>
+
+  <div class="sidebar-section">Getting Started</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="installation.html">Installation</a>
+  </nav>
+
+  <div class="sidebar-section">Documentation</div>
+  <nav>
+    <a href="user_guide.html">User Guide</a>
+    <a href="api_reference.html" class="active">API Reference</a>
+    <nav class="sidebar-sub">
+      <a href="#config">Configuration</a>
+      <a href="#bundles">Bundles</a>
+      <a href="#pipeline">Pipeline classes</a>
+      <a href="#atlas">Atlas helpers</a>
+      <a href="#strategy">Strategy pattern</a>
+      <a href="#tools">Connectivity tools</a>
+      <a href="#exceptions">Exceptions</a>
+    </nav>
+  </nav>
+
+  <div class="sidebar-section">Project</div>
+  <nav>
+    <a href="changelog.html">Changelog</a>
+    <a href="contributing.html">Contributing</a>
+  </nav>
+
+  <div class="sidebar-footer">
+    MIT License &nbsp;·&nbsp; <a href="https://github.com/ufvceiec/EEGRAPH" target="_blank">EEGraph</a><br>
+    Universidad de Alcalá, 2024
+  </div>
+</aside>
+
+<div class="main">
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">BRAPHIN</a> <span>›</span> API Reference</div>
+  <h1>API Reference</h1>
+  <p>Complete reference for every public class, dataclass, and function exported by <code>braphin</code>. All items are importable from the top-level package unless noted otherwise.</p>
+
+  <div class="toc">
+    <strong>On this page</strong>
+    <ol>
+      <li><a href="#config">Configuration dataclasses</a></li>
+      <li><a href="#bundles">Bundle dataclasses</a></li>
+      <li><a href="#pipeline">Pipeline classes</a></li>
+      <li><a href="#atlas">Atlas registry &amp; helpers</a></li>
+      <li><a href="#strategy">Strategy pattern</a></li>
+      <li><a href="#tools">Connectivity tools</a></li>
+      <li><a href="#exceptions">Exception hierarchy</a></li>
+    </ol>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       CONFIGURATION
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="config">Configuration Dataclasses</h2>
+  <p>All configuration objects live in <code>braphin.config</code> and are re-exported from the top-level package.</p>
+
+  <!-- InputConfig -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>InputConfig</code>
+    </div>
+    <div class="api-class-body">
+      <p>Controls NIfTI loading behaviour.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>allowed_fmri_extensions</code></td><td><code>list[str]</code></td><td><code>[".nii", ".nii.gz"]</code></td><td>Accepted file extensions for the main fMRI file</td></tr>
+          <tr><td><code>allowed_aux_extensions</code></td><td><code>list[str]</code></td><td><code>[".json", ".tsv", ".csv", ".npy"]</code></td><td>Accepted file extensions for auxiliary files</td></tr>
+          <tr><td><code>allow_tabular_inputs</code></td><td><code>bool</code></td><td><code>True</code></td><td>Whether tabular auxiliary inputs are accepted</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PreprocessConfig -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>PreprocessConfig</code>
+    </div>
+    <div class="api-class-body">
+      <p>Controls the preprocessing stage. All six steps are fully implemented and execute in order: NaN cleaning → slice timing → motion correction → outlier detection → normalisation → smoothing.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>apply_motion_correction</code></td><td><code>bool</code></td><td><code>False</code></td><td>✅ Rigid-body realignment to volume 0 (Powell optimisation)</td></tr>
+          <tr><td><code>apply_slice_timing</code></td><td><code>bool</code></td><td><code>False</code></td><td>✅ Linear interpolation per-slice to reference time. Requires <code>tr</code>.</td></tr>
+          <tr><td><code>apply_outlier_detection</code></td><td><code>bool</code></td><td><code>False</code></td><td>✅ DVARS-threshold outlier detection + scrubbing</td></tr>
+          <tr><td><code>apply_normalization</code></td><td><code>bool</code></td><td><code>True</code></td><td>✅ Per-voxel temporal z-score normalisation (mean and std computed along the time axis)</td></tr>
+          <tr><td><code>apply_smoothing</code></td><td><code>bool</code></td><td><code>False</code></td><td>✅ Isotropic Gaussian spatial smoothing</td></tr>
+          <tr><td><code>smoothing_fwhm</code></td><td><code>float</code></td><td><code>6.0</code></td><td>Full-width at half maximum of the Gaussian kernel, in mm</td></tr>
+          <tr><td><code>tr</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Repetition time in seconds. Required when <code>apply_slice_timing=True</code></td></tr>
+          <tr><td><code>slice_order</code></td><td><code>str</code></td><td><code>"sequential"</code></td><td>Slice acquisition order: <code>"sequential"</code> or <code>"interleaved"</code></td></tr>
+          <tr><td><code>slice_timing_ref_slice</code></td><td><code>int</code></td><td><code>0</code></td><td>Reference slice index for STC (0 = first, -1 = middle)</td></tr>
+          <tr><td><code>outlier_threshold_dvars</code></td><td><code>float</code></td><td><code>1.5</code></td><td>IQR multiplier for DVARS outlier threshold</td></tr>
+          <tr><td><code>scrubbing_strategy</code></td><td><code>str</code></td><td><code>"interpolate"</code></td><td><code>"interpolate"</code>: replace outliers with neighbour interpolation; <code>"mark"</code>: flag only</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- DenoiseConfig -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>DenoiseConfig</code>
+    </div>
+    <div class="api-class-body">
+      <p>Controls the denoising stage. All three steps are fully implemented.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>regress_confounds</code></td><td><code>bool</code></td><td><code>True</code></td><td>✅ Ordinary least-squares confound regression</td></tr>
+          <tr><td><code>apply_scrubbing</code></td><td><code>bool</code></td><td><code>True</code></td><td>✅ Interpolates outlier volumes (uses preprocess <code>outlier_mask</code> if available, else recomputes DVARS)</td></tr>
+          <tr><td><code>apply_bandpass</code></td><td><code>bool</code></td><td><code>True</code></td><td>✅ Zero-phase 5th-order Butterworth bandpass filter. Requires <code>tr</code>.</td></tr>
+          <tr><td><code>tr</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Repetition time in seconds. Required when <code>apply_bandpass=True</code></td></tr>
+          <tr><td><code>bandpass_low</code></td><td><code>float</code></td><td><code>0.008</code></td><td>Low cut-off frequency in Hz</td></tr>
+          <tr><td><code>bandpass_high</code></td><td><code>float</code></td><td><code>0.1</code></td><td>High cut-off frequency in Hz — Biswal 1995 resting-state band upper bound (must be &lt; Nyquist = 0.5/TR)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AtlasConfig -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>AtlasConfig</code>
+    </div>
+    <div class="api-class-body">
+      <p>Selects which atlas to use in <code>TransformMRIData</code>. Exactly one of <code>atlas_name</code> or <code>atlas_path</code> should be set (or neither when passing <code>atlas_data</code> directly to the constructor).</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>atlas_name</code></td><td><code>str | None</code></td><td><code>None</code></td><td>One of <code>"aal"</code>, <code>"schaefer_100"</code>, <code>"schaefer_200"</code>, <code>"schaefer_400"</code></td></tr>
+          <tr><td><code>atlas_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Path to a custom NIfTI atlas file</td></tr>
+          <tr><td><code>roi_labels</code></td><td><code>list[str] | None</code></td><td><code>None</code></td><td>Optional list of custom ROI names (length must equal number of unique atlas labels)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ConnectivityConfig -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>ConnectivityConfig</code>
+    </div>
+    <div class="api-class-body">
+      <p>Controls the connectivity computation stage.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>method</code></td><td><code>str</code></td><td><code>"pearson_correlation"</code></td><td>Connectivity measure. One of <code>"pearson_correlation"</code>, <code>"cross_correlation"</code>, <code>"corr_cross_correlation"</code></td></tr>
+          <tr><td><code>window_size</code></td><td><code>float | None</code></td><td><code>None</code></td><td><code>None</code> = static connectivity. A positive float (seconds) requests windowed dynamic connectivity (planned; flagged as pending step).</td></tr>
+          <tr><td><code>threshold</code></td><td><code>float | None</code></td><td><code>None</code></td><td>If set, edges with <code>|weight| &lt; threshold</code> are removed from the graph</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- BRAPHINConfig -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>BRAPHINConfig</code>
+    </div>
+    <div class="api-class-body">
+      <p>Aggregate configuration for the entire pipeline. Bundles all stage-specific configs into a single object for convenience.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td><code>input_config</code></td><td><code>InputConfig</code></td><td><code>InputConfig()</code></td></tr>
+          <tr><td><code>preprocess_config</code></td><td><code>PreprocessConfig</code></td><td><code>PreprocessConfig()</code></td></tr>
+          <tr><td><code>denoise_config</code></td><td><code>DenoiseConfig</code></td><td><code>DenoiseConfig()</code></td></tr>
+          <tr><td><code>atlas_config</code></td><td><code>AtlasConfig</code></td><td><code>AtlasConfig()</code></td></tr>
+          <tr><td><code>connectivity_config</code></td><td><code>ConnectivityConfig</code></td><td><code>ConnectivityConfig()</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       BUNDLES
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="bundles">Bundle Dataclasses</h2>
+  <p>Each pipeline stage returns a bundle — a typed dataclass that carries data, metadata, and provenance information to the next stage. All bundles are frozen-safe: they can be serialised (e.g. pickled) for checkpointing.</p>
+
+  <!-- MRIInputBundle -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>MRIInputBundle</code>
+    </div>
+    <div class="api-class-body">
+      <p>Output of <code>InputMRIData.load()</code>.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>fmri_path</code></td><td><code>str | None</code></td><td>Absolute path to the source NIfTI file</td></tr>
+          <tr><td><code>fmri_image</code></td><td><code>nibabel.Nifti1Image | None</code></td><td>Loaded NIfTI image object</td></tr>
+          <tr><td><code>fmri_metadata</code></td><td><code>dict | None</code></td><td>Keys: <code>shape</code>, <code>ndim</code>, <code>affine</code>, <code>header</code></td></tr>
+          <tr><td><code>auxiliary_files</code></td><td><code>dict[str, ndarray]</code></td><td>Filename → loaded array for each auxiliary file</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MRIPreprocessBundle -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>MRIPreprocessBundle</code>
+    </div>
+    <div class="api-class-body">
+      <p>Output of <code>PreprocessMRIData.run()</code>.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>fmri_path</code></td><td><code>str | None</code></td><td>Inherited from input bundle</td></tr>
+          <tr><td><code>original_metadata</code></td><td><code>dict | None</code></td><td>Metadata from the input bundle</td></tr>
+          <tr><td><code>preprocessed_data</code></td><td><code>ndarray (X, Y, Z, T)</code></td><td>4-D float32 array after cleaning and optional normalisation</td></tr>
+          <tr><td><code>voxel_time_series</code></td><td><code>ndarray (V, T)</code></td><td>Reshaped 2-D view: V = X·Y·Z voxels, T = time points</td></tr>
+          <tr><td><code>auxiliary_files</code></td><td><code>dict</code></td><td>Inherited from input bundle</td></tr>
+          <tr><td><code>applied_steps</code></td><td><code>list[str]</code></td><td>Steps actually executed (e.g. <code>"slice_timing_correction"</code>, <code>"motion_correction"</code>, <code>"per_voxel_temporal_normalisation"</code>, …)</td></tr>
+          <tr><td><code>pending_steps</code></td><td><code>list[str]</code></td><td>Always <code>[]</code> — retained for backward compatibility; all preprocessing steps are fully implemented</td></tr>
+          <tr><td><code>motion_params</code></td><td><code>ndarray (T, 6) | None</code></td><td>Estimated rigid-body motion parameters [tx, ty, tz, rx, ry, rz] per volume. <code>None</code> if motion correction was not applied.</td></tr>
+          <tr><td><code>outlier_mask</code></td><td><code>ndarray (T,) bool | None</code></td><td>Boolean mask marking outlier volumes detected via DVARS. <code>None</code> if outlier detection was not applied.</td></tr>
+          <tr><td><code>preprocess_metadata</code></td><td><code>dict</code></td><td>Keys: <code>original_shape</code>, <code>num_voxels</code>, <code>num_timepoints</code>, <code>non_finite_values_replaced</code>, <code>motion_params_shape</code>, <code>n_outliers</code>, …</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MRIDenoiseBundle -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>MRIDenoiseBundle</code>
+    </div>
+    <div class="api-class-body">
+      <p>Output of <code>DenoiseMRIData.run()</code>. Has the same shape fields as <code>MRIPreprocessBundle</code> plus denoising-specific metadata.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>denoised_data</code></td><td><code>ndarray (X, Y, Z, T)</code></td><td>4-D array after confound regression</td></tr>
+          <tr><td><code>voxel_time_series</code></td><td><code>ndarray (V, T)</code></td><td>Reshaped 2-D view of denoised data</td></tr>
+          <tr><td><code>applied_steps</code></td><td><code>list[str]</code></td><td>E.g. <code>["confound_regression"]</code></td></tr>
+          <tr><td><code>denoise_metadata</code></td><td><code>dict</code></td><td>Keys: <code>confounds_file_used</code>, <code>confounds_shape</code>, …</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MRITransformBundle -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>MRITransformBundle</code>
+    </div>
+    <div class="api-class-body">
+      <p>Output of <code>TransformMRIData.run()</code>.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>roi_time_series</code></td><td><code>ndarray (N_rois, T)</code></td><td>Per-ROI mean time series</td></tr>
+          <tr><td><code>roi_labels</code></td><td><code>list[str]</code></td><td>Anatomical or numeric label for each ROI</td></tr>
+          <tr><td><code>roi_ids</code></td><td><code>list[int]</code></td><td>Integer label values from the atlas NIfTI</td></tr>
+          <tr><td><code>roi_centroids_3d</code></td><td><code>ndarray (N_rois, 3)</code></td><td>Centroid coordinates in world or voxel space</td></tr>
+          <tr><td><code>centroid_coordinate_space</code></td><td><code>str</code></td><td><code>"world"</code> if atlas has affine; <code>"voxel"</code> otherwise</td></tr>
+          <tr><td><code>centroid_cache_used</code></td><td><code>bool</code></td><td><code>True</code> if centroids were loaded from the pre-built JSON cache</td></tr>
+          <tr><td><code>atlas_name</code></td><td><code>str | None</code></td><td>Name of the bundled atlas used, or <code>None</code> for custom</td></tr>
+          <tr><td><code>transform_metadata</code></td><td><code>dict</code></td><td>Resampling details, atlas shape, number of valid ROIs</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MRIConnectivityBundle -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass</span>
+      <code>MRIConnectivityBundle</code>
+    </div>
+    <div class="api-class-body">
+      <p>Output of <code>ModelMRIConnectivityData.run()</code>.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>connectivity_matrix</code></td><td><code>ndarray (N, N)</code></td><td>ROI × ROI connectivity matrix</td></tr>
+          <tr><td><code>graph</code></td><td><code>networkx.Graph</code></td><td>Graph with nodes (ROI) and edges (connectivity weights ≥ threshold)</td></tr>
+          <tr><td><code>method</code></td><td><code>str</code></td><td>Connectivity method used</td></tr>
+          <tr><td><code>threshold</code></td><td><code>float | None</code></td><td>Applied threshold value</td></tr>
+          <tr><td><code>roi_labels</code></td><td><code>list[str]</code></td><td>Inherited from transform bundle</td></tr>
+          <tr><td><code>roi_centroids_3d</code></td><td><code>ndarray</code></td><td>Inherited from transform bundle</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PIPELINE CLASSES
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="pipeline">Pipeline Classes</h2>
+
+  <!-- InputMRIData -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind">class</span>
+      <code>InputMRIData</code>
+    </div>
+    <div class="api-class-body">
+      <p>Stage 1 — validates and loads a NIfTI fMRI file and optional auxiliary files.</p>
+      <div class="api-method">
+        <div class="api-sig">
+          <span class="cls">InputMRIData</span>(<span class="kw">fmri_path</span>: <span class="tp">str | Path</span>, <span class="kw">auxiliary_paths</span>: <span class="tp">list | None</span> = <span class="lit">None</span>, <span class="kw">config</span>: <span class="tp">InputConfig | None</span> = <span class="lit">None</span>)
+        </div>
+        <table class="param-table">
+          <thead><tr><th>Parameter</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>fmri_path</code></td><td>Path to the <code>.nii</code> or <code>.nii.gz</code> file</td></tr>
+            <tr><td><code>auxiliary_paths</code></td><td>Optional list of confound / event / JSON sidecar paths</td></tr>
+            <tr><td><code>config</code></td><td>Optional <code>InputConfig</code>; defaults to <code>InputConfig()</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">load</span>() → <span class="tp">MRIInputBundle</span></div>
+        <p>Executes validation and loading. Raises <code>MRIInputError</code> for missing files or bad extensions; <code>MRIFormatError</code> if the NIfTI is not 4-D.</p>
+      </div>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">display_info</span>(<span class="kw">bundle</span>: <span class="tp">MRIInputBundle</span>) → <span class="tp">None</span></div>
+        <p>Prints a human-readable summary of the loaded bundle to stdout.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- PreprocessMRIData -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind">class</span>
+      <code>PreprocessMRIData</code>
+    </div>
+    <div class="api-class-body">
+      <p>Stage 2 — NaN/inf cleaning and optional preprocessing steps including slice-timing correction, motion correction, outlier detection, per-voxel temporal z-score normalisation, and spatial smoothing.</p>
+      <div class="api-method">
+        <div class="api-sig">
+          <span class="cls">PreprocessMRIData</span>(<span class="kw">input_bundle</span>: <span class="tp">MRIInputBundle</span>, <span class="kw">config</span>: <span class="tp">PreprocessConfig | None</span> = <span class="lit">None</span>)
+        </div>
+      </div>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">MRIPreprocessBundle</span></div>
+        <p>Executes preprocessing. Raises <code>PreprocessingError</code> if the bundle is invalid or if normalisation fails (zero-variance signal).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- DenoiseMRIData -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind">class</span>
+      <code>DenoiseMRIData</code>
+    </div>
+    <div class="api-class-body">
+      <p>Stage 3 — least-squares confound regression.</p>
+      <div class="api-method">
+        <div class="api-sig">
+          <span class="cls">DenoiseMRIData</span>(<span class="kw">preprocess_bundle</span>: <span class="tp">MRIPreprocessBundle</span>, <span class="kw">config</span>: <span class="tp">DenoiseConfig | None</span> = <span class="lit">None</span>)
+        </div>
+      </div>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">MRIDenoiseBundle</span></div>
+        <p>Scans auxiliary files for a compatible confound matrix (rows = time points) and regresses it out. Incompatible files are skipped. Raises <code>DenoisingError</code> if <code>regress_confounds=True</code> but no compatible file is found.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TransformMRIData -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind">class</span>
+      <code>TransformMRIData</code>
+    </div>
+    <div class="api-class-body">
+      <p>Stage 4 — atlas parcellation, automatic resampling, ROI mean time-series extraction and centroid computation.</p>
+      <div class="api-method">
+        <div class="api-sig">
+          <span class="cls">TransformMRIData</span>(<span class="kw">denoise_bundle</span>: <span class="tp">MRIDenoiseBundle</span>, <span class="kw">config</span>: <span class="tp">AtlasConfig | None</span> = <span class="lit">None</span>, <span class="kw">atlas_data</span>: <span class="tp">ndarray | Nifti1Image | None</span> = <span class="lit">None</span>)
+        </div>
+        <table class="param-table">
+          <thead><tr><th>Parameter</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>denoise_bundle</code></td><td>Output of <code>DenoiseMRIData.run()</code></td></tr>
+            <tr><td><code>config</code></td><td>Atlas selection. Use <code>AtlasConfig(atlas_name="aal")</code> for bundled atlases</td></tr>
+            <tr><td><code>atlas_data</code></td><td>Alternative to <code>config.atlas_path</code>: pass a NumPy array or NIfTI image directly. When set, <code>config.atlas_name</code> should be <code>None</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">MRITransformBundle</span></div>
+        <p>Resamples the atlas to fMRI space if needed, extracts ROI mean time series, computes centroids, and writes a centroid JSON cache for bundled atlases. Raises <code>AtlasError</code> or <code>TransformationError</code> on failure.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ModelMRIConnectivityData -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind">class</span>
+      <code>ModelMRIConnectivityData</code>
+    </div>
+    <div class="api-class-body">
+      <p>Stage 5 — computes the connectivity matrix and builds a NetworkX graph.</p>
+      <div class="api-method">
+        <div class="api-sig">
+          <span class="cls">ModelMRIConnectivityData</span>(<span class="kw">transform_bundle</span>: <span class="tp">MRITransformBundle</span>, <span class="kw">config</span>: <span class="tp">ConnectivityConfig | None</span> = <span class="lit">None</span>)
+        </div>
+      </div>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">MRIConnectivityBundle</span></div>
+        <p>Computes the N×N connectivity matrix using the configured method, optionally applies the absolute threshold, and builds a NetworkX graph with node positions and edge weights. Raises <code>ConnectivityError</code> for unsupported methods or matrix failures.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ATLAS
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="atlas">Atlas Registry &amp; Helpers</h2>
+  <p>Available from <code>braphin.atlas</code>.</p>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind dataclass">dataclass (frozen)</span>
+      <code>AtlasDefinition</code>
+    </div>
+    <div class="api-class-body">
+      <p>Immutable descriptor for a supported atlas.</p>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>name</code></td><td><code>str</code></td><td>Short identifier (e.g. <code>"aal"</code>)</td></tr>
+          <tr><td><code>family</code></td><td><code>str</code></td><td>Atlas family (e.g. <code>"AAL"</code>, <code>"Schaefer"</code>)</td></tr>
+          <tr><td><code>num_rois</code></td><td><code>int</code></td><td>Number of regions</td></tr>
+          <tr><td><code>modality</code></td><td><code>str</code></td><td>Intended modality (e.g. <code>"fMRI"</code>)</td></tr>
+          <tr><td><code>description</code></td><td><code>str</code></td><td>Human-readable description</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>list_supported_atlases() → list[str]</code>
+    </div>
+    <div class="api-class-body">
+      <p>Returns the list of all registered atlas names: <code>["aal", "schaefer_100", "schaefer_200", "schaefer_400"]</code>.</p>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>get_atlas_definition(atlas_name: str) → AtlasDefinition</code>
+    </div>
+    <div class="api-class-body">
+      <p>Returns the <code>AtlasDefinition</code> for the given name. Raises <code>AtlasError</code> if the name is not registered.</p>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>get_atlas_roi_name_map(atlas_name: str) → dict[int, str]</code>
+    </div>
+    <div class="api-class-body">
+      <p>Returns a mapping from integer NIfTI label (1-based) to anatomical ROI name. For AAL, keys are 1–116 (matching the sequential NIfTI labels, <em>not</em> the coded anatomical IDs 2001, 2101, …). Returns an empty dict for atlases without a name map (Schaefer).</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       STRATEGY
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="strategy">Strategy Pattern</h2>
+  <p>Available from <code>braphin.strategy</code>. You can subclass <code>ConnectivityStrategy</code> to implement custom measures without modifying pipeline code.</p>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind">abstract class</span>
+      <code>ConnectivityStrategy</code>
+    </div>
+    <div class="api-class-body">
+      <p>ABC for all connectivity strategies.</p>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">compute</span>(<span class="kw">roi_time_series</span>: <span class="tp">ndarray</span>) → <span class="tp">ndarray</span></div>
+        <p>Must return an N × N connectivity matrix from an (N, T) input.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>get_connectivity_strategy(method: str) → ConnectivityStrategy</code>
+    </div>
+    <div class="api-class-body">
+      <p>Factory function. Returns the concrete strategy instance for <code>method</code>. Raises <code>ConnectivityError</code> for unknown method strings.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       TOOLS
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="tools">Connectivity Tools</h2>
+  <p>Available from <code>braphin.tools</code>.</p>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>list_connectivity_measures() → list[str]</code>
+    </div>
+    <div class="api-class-body">
+      <p>Returns <code>["pearson_correlation", "cross_correlation", "corr_cross_correlation"]</code>.</p>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>validate_connectivity_method(method: str) → None</code>
+    </div>
+    <div class="api-class-body">
+      <p>Raises <code>ConnectivityError</code> if <code>method</code> is not in <code>CONNECTIVITY_MEASURES</code>.</p>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>compute_pearson_correlation(roi_time_series: ndarray) → ndarray</code>
+    </div>
+    <div class="api-class-body">
+      <p>Computes the N×N Pearson correlation matrix from an (N, T) ROI time-series array using <code>numpy.corrcoef</code>. Diagonal is 1.0; off-diagonal values are in [−1, 1].</p>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>apply_connectivity_threshold(matrix: ndarray, threshold: float) → ndarray</code>
+    </div>
+    <div class="api-class-body">
+      <p>Returns a copy of <code>matrix</code> where entries with <code>|value| &lt; threshold</code> are set to 0. Does not modify the diagonal.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       EXCEPTIONS
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="exceptions">Exception Hierarchy</h2>
+  <p>All exceptions are in <code>braphin.exceptions</code> and are importable from there.</p>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind exception">exception</span>
+      <code>BRAPHINError(Exception)</code>
+    </div>
+    <div class="api-class-body"><p>Base class for all BRAPHIN errors. Catch this to handle any pipeline failure generically.</p></div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind exception">exception</span>
+      <code>MRIInputError(BRAPHINError)</code>
+    </div>
+    <div class="api-class-body"><p>Raised by <code>InputMRIData</code>. File not found, unsupported extension, missing auxiliary file.</p></div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind exception">exception</span>
+      <code>MRIFormatError(BRAPHINError)</code>
+    </div>
+    <div class="api-class-body"><p>Raised when the NIfTI file has unexpected dimensionality (not 4-D) or internal format issues.</p></div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind exception">exception</span>
+      <code>AtlasError(BRAPHINError)</code>
+    </div>
+    <div class="api-class-body"><p>Unknown atlas name, missing atlas file, shape mismatch between atlas and fMRI volume.</p></div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind exception">exception</span>
+      <code>PreprocessingError(BRAPHINError)</code>
+    </div>
+    <div class="api-class-body"><p>Invalid input bundle, zero-variance signal preventing normalisation.</p></div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind exception">exception</span>
+      <code>DenoisingError(BRAPHINError)</code>
+    </div>
+    <div class="api-class-body"><p>No compatible confound file found when <code>regress_confounds=True</code>; confound regression failure.</p></div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind exception">exception</span>
+      <code>TransformationError(BRAPHINError)</code>
+    </div>
+    <div class="api-class-body"><p>Atlas–fMRI space mismatch after resampling; empty ROI mask; centroid computation failure.</p></div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind exception">exception</span>
+      <code>ConnectivityError(BRAPHINError)</code>
+    </div>
+    <div class="api-class-body"><p>Unsupported connectivity method string; ROI time-series matrix has wrong shape; matrix computation failure.</p></div>
+  </div>
+
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

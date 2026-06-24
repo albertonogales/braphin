@@ -1,0 +1,32 @@
+repos:
+  # ── Ruff: fast linter + formatter (replaces flake8, isort, black) ──────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix]           # auto-fix safe issues
+      - id: ruff-format         # enforce consistent formatting
+
+  # ── Basic file hygiene ──────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=500]     # block accidental NIfTI commits
+      - id: check-merge-conflict
+      - id: debug-statements    # catch leftover breakpoint() / pdb calls
+      - id: no-commit-to-branch
+        args: [--branch, main]  # force PRs; never commit directly to main
+
+  # ── Secrets detection ───────────────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: (requirements.*\.txt|CHANGELOG\.md)

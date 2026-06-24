@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Changelog — BRAPHIN</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body>
+
+<aside class="sidebar">
+  <a class="sidebar-logo" href="index.html">
+    <div class="sidebar-logo-icon">🧠</div>
+    <div class="sidebar-logo-text">
+      <span class="name">BRAPHIN</span>
+      <span class="version">v1.0.0</span>
+    </div>
+  </a>
+
+  <div class="sidebar-section">Getting Started</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="installation.html">Installation</a>
+  </nav>
+
+  <div class="sidebar-section">Documentation</div>
+  <nav>
+    <a href="user_guide.html">User Guide</a>
+    <a href="api_reference.html">API Reference</a>
+  </nav>
+
+  <div class="sidebar-section">Project</div>
+  <nav>
+    <a href="changelog.html" class="active">Changelog</a>
+    <a href="contributing.html">Contributing</a>
+  </nav>
+
+  <div class="sidebar-footer">
+    MIT License &nbsp;·&nbsp; <a href="https://github.com/ufvceiec/EEGRAPH" target="_blank">EEGraph</a><br>
+    Universidad de Alcalá, 2024
+  </div>
+</aside>
+
+<div class="main">
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">BRAPHIN</a> <span>›</span> Changelog</div>
+  <h1>Changelog</h1>
+  <p>All notable changes to BRAPHIN are documented here.
+     Format follows <a href="https://keepachangelog.com/en/1.0.0/" target="_blank">Keep a Changelog</a>.
+     Versioning follows <a href="https://semver.org/" target="_blank">Semantic Versioning</a>.</p>
+
+  <!-- ── Unreleased ── -->
+  <div class="version-block">
+    <div class="version-tag unreleased">Unreleased</div>
+
+    <h3>Added</h3>
+
+    <h4>preprocess.py — new pipeline steps</h4>
+    <ul>
+      <li><strong>Motion correction</strong> — rigid-body 6-parameter realignment of each volume
+          to the first volume using Powell optimisation (<code>scipy.optimize.minimize</code>) and
+          <code>scipy.ndimage.affine_transform</code>. Motion parameters (T × 6) are stored in
+          <code>MRIPreprocessBundle.motion_params</code>.</li>
+      <li><strong>Slice-timing correction</strong> — linear interpolation of each slice's time
+          series to a common reference acquisition time. Supports <code>"sequential"</code> and
+          <code>"interleaved"</code> slice orders. Requires <code>PreprocessConfig.tr</code>.</li>
+      <li><strong>Outlier detection / scrubbing</strong> — DVARS-based outlier detection with
+          configurable IQR-multiplier threshold. Outlier volumes are interpolated from neighbours
+          (<code>"interpolate"</code>) or just flagged (<code>"mark"</code>). Outlier mask stored
+          in <code>MRIPreprocessBundle.outlier_mask</code>.</li>
+      <li><strong>Spatial smoothing</strong> — isotropic Gaussian kernel applied per 3-D volume.
+          FWHM (mm) is converted to per-axis sigma using voxel sizes from the NIfTI header.</li>
+    </ul>
+
+    <h4>denoise.py — new pipeline steps</h4>
+    <ul>
+      <li><strong>Bandpass filtering</strong> — zero-phase 5th-order Butterworth bandpass filter
+          (<code>scipy.signal.butter</code> + <code>sosfiltfilt</code>) applied to each voxel
+          time series. Requires <code>DenoiseConfig.tr</code>.</li>
+      <li><strong>Scrubbing</strong> — reuses the <code>outlier_mask</code> from the preprocess
+          bundle if available; otherwise recomputes DVARS on the denoised signal. Interpolates
+          flagged volumes from clean neighbours.</li>
+    </ul>
+
+    <h4>Configuration &amp; bundle fields</h4>
+    <ul>
+      <li>New <code>PreprocessConfig</code> fields: <code>tr</code>, <code>slice_order</code>,
+          <code>slice_timing_ref_slice</code>, <code>outlier_threshold_dvars</code>,
+          <code>scrubbing_strategy</code>.</li>
+      <li>New <code>DenoiseConfig</code> field: <code>tr</code>.</li>
+      <li>New <code>MRIPreprocessBundle</code> fields: <code>motion_params</code> (ndarray T×6),
+          <code>outlier_mask</code> (bool ndarray T).</li>
+    </ul>
+
+    <h4>Tests</h4>
+    <ul>
+      <li>49 new pytest tests across <code>tests/test_preprocess_new_steps.py</code> covering all
+          six new implementations (total test suite: 387 tests).</li>
+    </ul>
+
+    <h3>Planned</h3>
+    <ul>
+      <li>Per-voxel percent signal change (PSC) normalisation</li>
+      <li>Brain masking to exclude non-brain voxels</li>
+      <li>Dynamic (windowed) functional connectivity</li>
+      <li>TR extraction from NIfTI header and automatic propagation through the pipeline</li>
+    </ul>
+  </div>
+
+  <!-- ── 1.0.0 ── -->
+  <div class="version-block">
+    <div class="version-tag">v1.0.0 — 2024</div>
+    <p>
+      First stable release accompanying the undergraduate thesis
+      <em>"BRAPHIN: A Python Library for fMRI Functional Connectivity Graph Analysis"</em>
+      (Universidad de Alcalá, David Ortega Lozano).
+    </p>
+
+    <h3>Added</h3>
+    <h4>braphin — fMRI pipeline</h4>
+    <ul>
+      <li><code>InputMRIData</code> — NIfTI loading and validation with support for auxiliary files (TSV, CSV, NPY, JSON)</li>
+      <li><code>PreprocessMRIData</code> — NaN/inf cleaning and optional slice-timing correction, motion correction, outlier detection, per-voxel temporal z-score normalisation, and spatial smoothing</li>
+      <li><code>DenoiseMRIData</code> — least-squares confound regression</li>
+      <li><code>TransformMRIData</code> — atlas parcellation, automatic nearest-neighbour resampling to fMRI space, ROI mean time-series extraction, centroid computation and JSON caching</li>
+      <li><code>ModelMRIConnectivityData</code> — Pearson correlation, cross-correlation, corrected cross-correlation; optional absolute threshold</li>
+      <li>Four bundled atlases: AAL (116 ROIs), Schaefer 100 / 200 / 400</li>
+      <li>Typed bundle dataclasses (<code>MRIInputBundle</code>, <code>MRIPreprocessBundle</code>, <code>MRIDenoiseBundle</code>, <code>MRITransformBundle</code>, <code>MRIConnectivityBundle</code>) for full pipeline traceability</li>
+      <li><code>AtlasDefinition</code> registry and helpers (<code>list_supported_atlases</code>, <code>get_atlas_definition</code>, <code>get_atlas_roi_name_map</code>)</li>
+      <li>Strategy pattern for connectivity (<code>ConnectivityStrategy</code> ABC + three concrete strategies)</li>
+      <li>Hierarchical exception system (<code>BRAPHINError</code> → 7 specific subclasses)</li>
+      <li>Config dataclasses (<code>InputConfig</code>, <code>PreprocessConfig</code>, <code>DenoiseConfig</code>, <code>AtlasConfig</code>, <code>ConnectivityConfig</code>, <code>BRAPHINConfig</code>)</li>
+    </ul>
+
+    <h4>eegraph — unified API</h4>
+    <ul>
+      <li><code>Graph.load_data(modality="fmri")</code> and <code>Graph.modelate()</code> route to the braphin pipeline</li>
+      <li>Original EEG support preserved without breaking changes</li>
+    </ul>
+
+    <h4>Tests</h4>
+    <ul>
+      <li>167 pytest unit and integration tests covering every pipeline stage</li>
+      <li>All tests use synthetic data; no external files required</li>
+      <li>Total test suite (including Unreleased additions): 387 tests</li>
+    </ul>
+
+    <h3>Fixed</h3>
+    <table>
+      <thead>
+        <tr><th>#</th><th>File</th><th>Bug</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code>transform.py</code></td>
+          <td>
+            Crash when <code>atlas_data</code> was passed directly as an ndarray or NIfTI image
+            with <code>atlas_name=None</code>. The centroid builder now falls back to computing
+            centroids from the supplied data instead of calling
+            <code>_resolve_or_build_canonical_roi_centroids</code>.
+          </td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><code>io/tabular.py</code></td>
+          <td>
+            BIDS TSV confound files with text header rows (e.g. <code>trans_x&emsp;trans_y&emsp;…</code>)
+            were parsed as a NaN row, producing an array of shape <code>(T+1, K)</code> and breaking
+            confound regression. The loader now auto-detects and skips the header.
+          </td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><code>atlas.py</code></td>
+          <td>
+            The AAL ROI name map used coded anatomical IDs (2001, 2101, …) instead of the
+            sequential integer labels (1–116) stored in the NIfTI file; anatomical names were
+            never returned. All 116 keys are now sequential integers.
+          </td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code>tools.py</code></td>
+          <td>
+            <code>_corr_cross_correlation_coef</code> computed
+            <code>corCC = positive_lag − negative_lag</code> without reversing
+            <code>negative_lag</code>, misaligning lags and breaking the antisymmetry property
+            <code>corCC(x,y) = −corCC(y,x)</code>. Fixed by adding <code>[::-1]</code> reversal.
+          </td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code>denoise.py</code></td>
+          <td>
+            <code>_find_confounds_matrix</code> raised <code>DenoisingError</code> on the first
+            incompatible confound file instead of continuing the search. Changed <code>raise</code>
+            to <code>continue</code>.
+          </td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><code>transform.py</code></td>
+          <td>
+            <code>centroid_coordinate_space</code> was unconditionally overwritten to
+            <code>"world"</code> regardless of whether the atlas had an affine matrix.
+            Voxel-space atlases now correctly report <code>"voxel"</code>.
+          </td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><code>__init__.py</code></td>
+          <td>
+            Two import lines for <code>strategy</code> and <code>modelateData</code> were
+            duplicated, causing import-time warnings. Removed the duplicate lines.
+          </td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><code>transform.py</code></td>
+          <td>
+            Unused <code>from importlib import metadata</code> import removed.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

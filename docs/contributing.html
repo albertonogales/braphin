@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contributing — BRAPHIN</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body>
+
+<aside class="sidebar">
+  <a class="sidebar-logo" href="index.html">
+    <div class="sidebar-logo-icon">🧠</div>
+    <div class="sidebar-logo-text">
+      <span class="name">BRAPHIN</span>
+      <span class="version">v1.0.0</span>
+    </div>
+  </a>
+
+  <div class="sidebar-section">Getting Started</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="installation.html">Installation</a>
+  </nav>
+
+  <div class="sidebar-section">Documentation</div>
+  <nav>
+    <a href="user_guide.html">User Guide</a>
+    <a href="api_reference.html">API Reference</a>
+  </nav>
+
+  <div class="sidebar-section">Project</div>
+  <nav>
+    <a href="changelog.html">Changelog</a>
+    <a href="contributing.html" class="active">Contributing</a>
+  </nav>
+
+  <div class="sidebar-footer">
+    MIT License &nbsp;·&nbsp; <a href="https://github.com/ufvceiec/EEGRAPH" target="_blank">EEGraph</a><br>
+    Universidad de Alcalá, 2024
+  </div>
+</aside>
+
+<div class="main">
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">BRAPHIN</a> <span>›</span> Contributing</div>
+  <h1>Contributing to BRAPHIN</h1>
+  <p>Thank you for your interest in contributing! This page explains how to report bugs, propose features, set up a development environment, and submit code.</p>
+
+  <div class="toc">
+    <strong>On this page</strong>
+    <ol>
+      <li><a href="#bugs">Reporting bugs</a></li>
+      <li><a href="#features">Requesting features</a></li>
+      <li><a href="#setup">Development environment</a></li>
+      <li><a href="#tests">Running the tests</a></li>
+      <li><a href="#style">Coding style</a></li>
+      <li><a href="#pr">Submitting a pull request</a></li>
+      <li><a href="#commits">Commit conventions</a></li>
+    </ol>
+  </div>
+
+  <div class="note">
+    <strong>Academic integrity:</strong> BRAPHIN is a scientific library.
+    Do not submit plagiarised code or fabricated benchmark results.
+    All contributors are expected to be respectful and constructive.
+  </div>
+
+  <!-- Bugs -->
+  <h2 id="bugs">Reporting Bugs</h2>
+  <p>Before opening an issue, please:</p>
+  <ol>
+    <li>Search existing issues to avoid duplicates.</li>
+    <li>Reproduce the bug against the latest <code>main</code> branch.</li>
+    <li>Include a <strong>minimal reproducible example</strong> — synthetic or anonymised data only, never real patient data.</li>
+  </ol>
+  <p>A good bug report contains:</p>
+  <ul>
+    <li>BRAPHIN version: <code>import braphin; print(braphin.__version__)</code></li>
+    <li>Python version and operating system</li>
+    <li>Full traceback</li>
+    <li>Minimal code snippet that reproduces the issue</li>
+  </ul>
+
+  <!-- Features -->
+  <h2 id="features">Requesting Features</h2>
+  <p>Open a GitHub issue with the <code>enhancement</code> label. Describe:</p>
+  <ul>
+    <li>The neuroimaging use case that motivates the feature</li>
+    <li>Which pipeline stage it would affect</li>
+    <li>Any relevant references (papers, toolbox implementations)</li>
+  </ul>
+  <p>Features already listed in the <a href="changelog.html">Unreleased</a> section are planned — contributions implementing them are especially welcome.</p>
+
+  <!-- Setup -->
+  <h2 id="setup">Development Environment</h2>
+  <pre><code class="language-bash"># 1. Fork and clone
+git clone https://github.com/&lt;your-username&gt;/braphin.git
+cd braphin
+
+# 2. Create a virtual environment
+python -m venv .venv
+source .venv/bin/activate     # Windows: .venv\Scripts\activate
+
+# 3. Install in editable mode with dev dependencies
+pip install -e ".[dev]"
+# — or —
+pip install -r requirements-dev.txt &amp;&amp; pip install -e .
+
+# 4. Optional: EEG or GNN extras
+pip install -e ".[eeg]"
+pip install -e ".[gnn]"</code></pre>
+
+  <!-- Tests -->
+  <h2 id="tests">Running the Tests</h2>
+  <p>The test suite uses only synthetic data — no NIfTI files or internet access required.</p>
+  <pre><code class="language-bash"># Run all 387 tests
+pytest
+
+# With coverage report
+pytest --cov=braphin --cov-report=term-missing
+
+# Run a specific test module
+pytest tests/test_transform.py -v
+
+# Run tests matching a keyword
+pytest -k "centroid" -v</code></pre>
+
+  <div class="tip">
+    <strong>Fast:</strong> the full suite runs in under 2 seconds. All tests use synthetic arrays generated with <code>numpy.random</code> — no real data files are needed.
+  </div>
+
+  <p>All tests must pass before a pull request will be reviewed. New code must be accompanied by tests — aim for at least one happy-path test and one error-path test per public method.</p>
+
+  <!-- Style -->
+  <h2 id="style">Coding Style</h2>
+
+  <table>
+    <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr><td>Line length</td><td>100 characters (PEP 8)</td></tr>
+      <tr><td>Type hints</td><td>All public function signatures (parameters and return type)</td></tr>
+      <tr><td>Docstrings</td><td>All public classes and methods (Google-style preferred)</td></tr>
+      <tr><td>No silent stubs</td><td>If a feature flag is not yet implemented, raise <code>NotImplementedError</code> — do not return input unchanged</td></tr>
+      <tr><td>Exceptions</td><td>Raise the most specific <code>BRAPHINError</code> subclass. Never raise a bare <code>Exception</code></td></tr>
+      <tr><td>Bundle pattern</td><td>Each stage must accept and return a typed bundle dataclass. Never mutate input bundles</td></tr>
+      <tr><td>No real data</td><td>Tests must use synthetic arrays. Real NIfTI files must never be committed</td></tr>
+    </tbody>
+  </table>
+
+  <!-- PR -->
+  <h2 id="pr">Submitting a Pull Request</h2>
+  <ol>
+    <li>Create a feature branch from <code>main</code>:
+      <pre><code class="language-bash">git checkout -b feature/bandpass-filtering</code></pre>
+    </li>
+    <li>Make your changes, write tests, update <code>CHANGELOG.md</code> under <code>[Unreleased]</code>.</li>
+    <li>Ensure <code>pytest</code> passes with no failures or warnings.</li>
+    <li>Push and open a pull request against <code>main</code>.</li>
+    <li>Fill in the PR description: motivation, what changed, how it was tested.</li>
+  </ol>
+  <div class="warning">
+    <strong>Important:</strong> Pull requests that break existing tests or reduce coverage without
+    justification will not be merged.
+  </div>
+
+  <!-- Commits -->
+  <h2 id="commits">Commit Message Conventions</h2>
+  <p>BRAPHIN uses <a href="https://www.conventionalcommits.org/" target="_blank">Conventional Commits</a>:</p>
+  <pre><code class="language-text">&lt;type&gt;(&lt;scope&gt;): &lt;short summary&gt;
+
+[optional body]
+
+[optional footer]</code></pre>
+
+  <table>
+    <thead><tr><th>Type</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td><code>feat</code></td><td>New feature</td></tr>
+      <tr><td><code>fix</code></td><td>Bug fix</td></tr>
+      <tr><td><code>test</code></td><td>Adding or correcting tests</td></tr>
+      <tr><td><code>docs</code></td><td>Documentation only</td></tr>
+      <tr><td><code>refactor</code></td><td>Code change with no behaviour change</td></tr>
+      <tr><td><code>chore</code></td><td>Build scripts, CI, dependencies</td></tr>
+    </tbody>
+  </table>
+
+  <p>Examples:</p>
+  <pre><code class="language-text">feat(denoise): add temporal bandpass filtering via scipy.signal
+fix(tabular): skip BIDS TSV header row to avoid NaN confound rows
+test(transform): add centroid space assertions for voxel-only atlases
+docs: add HTML documentation site</code></pre>
+
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

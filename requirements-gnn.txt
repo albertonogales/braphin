@@ -1,0 +1,9 @@
+# Optional requirements for the Graph Neural Network scripts
+# Install with: pip install -r requirements-gnn.txt
+
+-r requirements.txt
+
+torch>=2.0
+torch-geometric>=2.4
+scikit-learn>=1.3
+pandas>=2.0

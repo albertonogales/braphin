@@ -1,0 +1,39 @@
+# requirements-lock.txt — exact pinned versions for reproducibility
+#
+# Generated against Python 3.11 on Linux (ubuntu-22.04).
+# Use this file to reproduce the exact environment used during development
+# and paper benchmarking:
+#
+#   pip install -r requirements-lock.txt
+#
+# To regenerate against your own environment:
+#   pip install -e . && pip freeze > requirements-lock.txt
+#
+# Core dependencies
+nibabel==5.2.1
+numpy==1.26.4
+scipy==1.13.0
+networkx==3.3
+
+# nibabel transitive dependencies
+packaging==24.0
+
+# numpy / scipy transitive dependencies
+# (no additional pure-Python deps for these versions)
+
+# ── Optional: EEG ──────────────────────────────────────────────────────────
+# mne==1.7.0
+# pandas==2.2.2
+# antropy==0.1.6
+# plotly==5.22.0
+# scot==0.19.0
+
+# ── Optional: GNN ──────────────────────────────────────────────────────────
+# torch==2.3.0
+# torch-geometric==2.5.3
+# scikit-learn==1.4.2
+# pandas==2.2.2
+
+# ── Dev / test ─────────────────────────────────────────────────────────────
+# pytest==8.2.0
+# pytest-cov==5.0.0

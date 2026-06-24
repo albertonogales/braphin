@@ -1,0 +1,24 @@
+# MANIFEST.in — files included in the source distribution (sdist)
+# The binary wheel already respects package_data; this file covers sdist.
+
+# Atlas NIfTI files (bundled atlases — NOT subject data)
+recursive-include mrigraph/atlases *.nii.gz
+
+# Pre-computed centroid JSON files
+recursive-include mrigraph/atlas_centroids *.json
+
+# Documentation
+include README.md
+include CHANGELOG.md
+include LICENSE
+include CONTRIBUTING.md
+include CITATION.cff
+
+# Requirement files (useful for reproducibility)
+include requirements*.txt
+
+# Exclude compiled / cache files
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store

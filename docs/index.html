@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BRAPHIN — fMRI Functional Connectivity Graph Library</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════ SIDEBAR ═══════════════════════════ -->
+<aside class="sidebar">
+  <a class="sidebar-logo" href="index.html">
+    <div class="sidebar-logo-icon">🧠</div>
+    <div class="sidebar-logo-text">
+      <span class="name">BRAPHIN</span>
+      <span class="version">v1.0.0</span>
+    </div>
+  </a>
+
+  <div class="sidebar-section">Getting Started</div>
+  <nav>
+    <a href="index.html" class="active">Home</a>
+    <a href="installation.html">Installation</a>
+  </nav>
+
+  <div class="sidebar-section">Documentation</div>
+  <nav>
+    <a href="user_guide.html">User Guide</a>
+    <a href="api_reference.html">API Reference</a>
+  </nav>
+
+  <div class="sidebar-section">Project</div>
+  <nav>
+    <a href="changelog.html">Changelog</a>
+    <a href="contributing.html">Contributing</a>
+  </nav>
+
+  <div class="sidebar-footer">
+    MIT License &nbsp;·&nbsp; <a href="https://github.com/ufvceiec/EEGRAPH" target="_blank">EEGraph</a><br>
+    Universidad de Alcalá, 2024
+  </div>
+</aside>
+
+<!-- ═══════════════════════════ MAIN ═══════════════════════════ -->
+<div class="main">
+<div class="content">
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>🧠 BRAPHIN</h1>
+    <p>A Python library for resting-state fMRI functional connectivity analysis. From NIfTI file to NetworkX graph in five pipeline stages.</p>
+    <div class="hero-badges">
+      <span class="badge badge-blue">Python ≥ 3.9</span>
+      <span class="badge badge-green">167 Tests Passing</span>
+      <span class="badge badge-amber">MIT License</span>
+      <span class="badge">v1.0.0</span>
+    </div>
+  </div>
+
+  <!-- Feature cards -->
+  <h2>Features</h2>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">🔬</div>
+      <h3>Full fMRI Pipeline</h3>
+      <p>NIfTI loading, preprocessing, confound regression, atlas parcellation, ROI extraction and connectivity — all in one coherent API.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🗺️</div>
+      <h3>Four Bundled Atlases</h3>
+      <p>AAL (116 ROIs), Schaefer 100, 200, and 400. Automatic nearest-neighbour resampling to the subject's fMRI space.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h3>Three Connectivity Measures</h3>
+      <p>Pearson correlation, cross-correlation, and corrected cross-correlation with optional absolute threshold.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🕸️</div>
+      <h3>GNN-Ready Output</h3>
+      <p>NetworkX graphs with node positions and edge weights. Compatible with PyTorch Geometric for GNN-based classification tasks.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔗</div>
+      <h3>Unified EEG + fMRI API</h3>
+      <p>Extends EEGraph. Use the same <code>Graph.load_data()</code> / <code>Graph.modelate()</code> calls for both modalities.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🧪</div>
+      <h3>Fully Tested</h3>
+      <p>167 pytest unit and integration tests. All tests use synthetic data — no external files required.</p>
+    </div>
+  </div>
+
+  <!-- Pipeline overview -->
+  <h2>Pipeline Overview</h2>
+  <p>Every stage accepts a typed <em>bundle</em> dataclass from the previous stage and produces a new bundle. This ensures full traceability and makes it easy to inspect, checkpoint, or restart at any stage.</p>
+
+  <div class="pipeline">
+    <div class="pipe-step">
+      <div class="pipe-box">
+        <div class="pipe-box-head">
+          <div class="pipe-step-num">1</div>
+          <strong>InputMRIData</strong>
+        </div>
+        <small>Validates and loads the NIfTI file. Accepts auxiliary files (TSV confounds, CSV, NPY, JSON). Returns <code>MRIInputBundle</code>.</small>
+      </div>
+    </div>
+    <div class="pipe-arrow">▼</div>
+    <div class="pipe-step">
+      <div class="pipe-box">
+        <div class="pipe-box-head">
+          <div class="pipe-step-num">2</div>
+          <strong>PreprocessMRIData</strong>
+        </div>
+        <small>Cleans NaN/inf values; optional slice-timing correction, motion correction, outlier detection, per-voxel temporal z-score normalisation, and spatial smoothing. Returns <code>MRIPreprocessBundle</code>.</small>
+      </div>
+    </div>
+    <div class="pipe-arrow">▼</div>
+    <div class="pipe-step">
+      <div class="pipe-box">
+        <div class="pipe-box-head">
+          <div class="pipe-step-num">3</div>
+          <strong>DenoiseMRIData</strong>
+        </div>
+        <small>Least-squares confound regression using motion parameters or any TSV/CSV confound file. Returns <code>MRIDenoiseBundle</code>.</small>
+      </div>
+    </div>
+    <div class="pipe-arrow">▼</div>
+    <div class="pipe-step">
+      <div class="pipe-box">
+        <div class="pipe-box-head">
+          <div class="pipe-step-num">4</div>
+          <strong>TransformMRIData</strong>
+        </div>
+        <small>Atlas parcellation with automatic resampling. Extracts per-ROI mean time series and world-space centroids. Returns <code>MRITransformBundle</code>.</small>
+      </div>
+    </div>
+    <div class="pipe-arrow">▼</div>
+    <div class="pipe-step">
+      <div class="pipe-box">
+        <div class="pipe-box-head">
+          <div class="pipe-step-num">5</div>
+          <strong>ModelMRIConnectivityData</strong>
+        </div>
+        <small>Computes the ROI×ROI connectivity matrix and builds a NetworkX graph. Returns <code>MRIConnectivityBundle</code>.</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick start -->
+  <h2>Quick Start</h2>
+  <pre><code class="language-python">from braphin import (
+    InputMRIData, PreprocessMRIData, DenoiseMRIData,
+    TransformMRIData, ModelMRIConnectivityData,
+    PreprocessConfig, DenoiseConfig, AtlasConfig, ConnectivityConfig,
+)
+
+# 1 — Load
+input_bundle = InputMRIData(
+    "sub-01_task-rest_bold.nii.gz",
+    auxiliary_paths=["sub-01_task-rest_confounds_timeseries.tsv"],
+).load()
+
+# 2 — Preprocess
+pp_bundle = PreprocessMRIData(
+    input_bundle,
+    PreprocessConfig(apply_normalization=True),
+).run()
+
+# 3 — Denoise: regress out motion confounds
+dn_bundle = DenoiseMRIData(
+    pp_bundle,
+    DenoiseConfig(regress_confounds=True),
+).run()
+
+# 4 — Parcellate with the AAL atlas (116 ROIs)
+tx_bundle = TransformMRIData(
+    dn_bundle,
+    config=AtlasConfig(atlas_name="aal"),
+).run()
+
+# 5 — Compute Pearson functional connectivity
+conn_bundle = ModelMRIConnectivityData(
+    tx_bundle,
+    ConnectivityConfig(method="pearson_correlation", threshold=0.3),
+).run()
+
+matrix = conn_bundle.connectivity_matrix   # ndarray shape (116, 116)
+</code></pre>
+
+  <div class="note">
+    <strong>📖 New here?</strong> Follow the step-by-step
+    <a href="user_guide.html">User Guide</a> for detailed explanations
+    of every stage, all configuration options, and working with custom atlases.
+  </div>
+
+  <!-- Design principles -->
+  <h2>Design Principles</h2>
+  <ul>
+    <li><strong>Bundle pattern:</strong> each stage consumes and produces a typed dataclass — full pipeline traceability with no hidden state.</li>
+    <li><strong>Strategy pattern:</strong> connectivity measures are interchangeable without touching pipeline code.</li>
+    <li><strong>Fail loudly:</strong> a seven-class exception hierarchy (<code>BRAPHINError</code> → <em>stage-specific</em>) with actionable messages — no silent failures.</li>
+    <li><strong>Synthetic tests only:</strong> the full test suite runs without any real neuroimaging data files.</li>
+  </ul>
+
+  <!-- Navigation cards -->
+  <h2>Where to Go Next</h2>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">⚙️</div>
+      <h3><a href="installation.html">Installation</a></h3>
+      <p>pip, optional extras (EEG, GNN), and installing from source.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📖</div>
+      <h3><a href="user_guide.html">User Guide</a></h3>
+      <p>Full walkthrough: loading data, each pipeline stage, atlases, connectivity, error handling, and GNN output.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📚</div>
+      <h3><a href="api_reference.html">API Reference</a></h3>
+      <p>Complete reference for every public class, dataclass, and function.</p>
+    </div>
+  </div>
+
+  <!-- Citation -->
+  <h2>Citation</h2>
+  <p>If you use BRAPHIN in your research, please cite:</p>
+  <pre><code class="language-bibtex">@thesis{ortega2024braphin,
+  author  = {Ortega Lozano, David},
+  title   = {BRAPHIN: A Python Library for fMRI Functional Connectivity Graph Analysis},
+  school  = {Universidad de Alcalá},
+  year    = {2024},
+  type    = {Trabajo de Fin de Grado},
+}</code></pre>
+
+</div><!-- /content -->
+</div><!-- /main -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>
