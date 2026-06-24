@@ -1,111 +1,103 @@
-from typing import Dict, List, Optional
 import warnings
-import numpy as np
-from scipy import signal, stats
-from scipy.spatial.distance import cdist
-from .exceptions import ConnectivityError
 
+import numpy as np
+from scipy import signal
+from scipy.spatial.distance import cdist
+
+from .exceptions import ConnectivityError
 
 # ============================================================
 # Registry of supported connectivity measures.
 # ============================================================
-CONNECTIVITY_MEASURES: Dict[str, str] = {
+CONNECTIVITY_MEASURES: dict[str, str] = {
     # ── Undirected, no TR ────────────────────────────────────────────────────
-    "pearson_correlation":   "Pearson correlation",
-    "cross_correlation":     "Cross-correlation",
+    "pearson_correlation": "Pearson correlation",
+    "cross_correlation": "Cross-correlation",
     "corr_cross_correlation": "Corrected cross-correlation",
-    "partial_correlation":   "Partial correlation",
-    "aec":                   "Amplitude Envelope Correlation",
-    "aec_orth":              "Orthogonalized Amplitude Envelope Correlation",
-    "mutual_information":    "Mutual Information",
-    "sync_likelihood":       "Synchronisation Likelihood",
+    "partial_correlation": "Partial correlation",
+    "aec": "Amplitude Envelope Correlation",
+    "aec_orth": "Orthogonalized Amplitude Envelope Correlation",
+    "mutual_information": "Mutual Information",
+    "sync_likelihood": "Synchronisation Likelihood",
     # ── Undirected, TR required ──────────────────────────────────────────────
-    "coherence":             "Magnitude-squared coherence",
-    "imag_coherence":        "Imaginary coherence",
-    "lagged_coherence":      "Lagged coherence",
+    "coherence": "Magnitude-squared coherence",
+    "imag_coherence": "Imaginary coherence",
+    "lagged_coherence": "Lagged coherence",
     # ── Directed, no TR ─────────────────────────────────────────────────────
-    "granger_causality":     "Granger Causality",
-    "transfer_entropy":      "Transfer Entropy",
+    "granger_causality": "Granger Causality",
+    "transfer_entropy": "Transfer Entropy",
     # ── Directed, TR required ────────────────────────────────────────────────
-    "pdc":                   "Partial Directed Coherence",
-    "psi":                   "Phase Slope Index",
+    "pdc": "Partial Directed Coherence",
+    "psi": "Phase Slope Index",
 }
 
 # Measures that require a TR (repetition time / sample period).
 SPECTRAL_MEASURES = {"coherence", "imag_coherence", "lagged_coherence", "pdc", "psi"}
 
 # Measures that produce an asymmetric (directed) matrix.
-DIRECTED_MEASURES = {"granger_causality", "transfer_entropy", "pdc", "psi",
-                     "cross_correlation", "corr_cross_correlation",
-                     "imag_coherence"}
+DIRECTED_MEASURES = {
+    "granger_causality",
+    "transfer_entropy",
+    "pdc",
+    "psi",
+    "cross_correlation",
+    "corr_cross_correlation",
+    "imag_coherence",
+}
 
 # Allowed aliases. A dictionary to parse the different names that a user may provide.
-CONNECTIVITY_ALIASES: Dict[str, str] = {
+CONNECTIVITY_ALIASES: dict[str, str] = {
     "pearson": "pearson_correlation",
     "pearson_correlation": "pearson_correlation",
     "pearson correlation": "pearson_correlation",
-
     "cross_correlation": "cross_correlation",
     "cross-correlation": "cross_correlation",
     "cross correlation": "cross_correlation",
-
     "corr_cross_correlation": "corr_cross_correlation",
     "corrected_cross_correlation": "corr_cross_correlation",
     "corrected cross correlation": "corr_cross_correlation",
     "corrected cross-correlation": "corr_cross_correlation",
-
     "partial_correlation": "partial_correlation",
     "partial correlation": "partial_correlation",
     "partial corr": "partial_correlation",
-
     "coherence": "coherence",
     "squared_coherence": "coherence",
     "squared coherence": "coherence",
-
     "imag_coherence": "imag_coherence",
     "imaginary_coherence": "imag_coherence",
     "imaginary coherence": "imag_coherence",
-
     "lagged_coherence": "lagged_coherence",
     "lagged coherence": "lagged_coherence",
-
     "aec": "aec",
     "amplitude_envelope_correlation": "aec",
     "amplitude envelope correlation": "aec",
-
     "aec_orth": "aec_orth",
     "aec_c": "aec_orth",
     "orthogonalized_aec": "aec_orth",
     "orthogonalized aec": "aec_orth",
-
     "mutual_information": "mutual_information",
     "mutual information": "mutual_information",
     "mi": "mutual_information",
-
     "sync_likelihood": "sync_likelihood",
     "synchronisation_likelihood": "sync_likelihood",
     "synchronization_likelihood": "sync_likelihood",
     "synchronisation likelihood": "sync_likelihood",
-
     "granger_causality": "granger_causality",
     "granger causality": "granger_causality",
     "gc": "granger_causality",
-
     "transfer_entropy": "transfer_entropy",
     "transfer entropy": "transfer_entropy",
     "te": "transfer_entropy",
-
     "pdc": "pdc",
     "partial_directed_coherence": "pdc",
     "partial directed coherence": "pdc",
-
     "psi": "psi",
     "phase_slope_index": "psi",
     "phase slope index": "psi",
 }
 
 
-def list_connectivity_measures() -> List[str]:
+def list_connectivity_measures() -> list[str]:
     """
     Return the list of supported canonical method names.
     """
@@ -139,9 +131,7 @@ def validate_roi_time_series(roi_time_series: np.ndarray) -> None:
     - 2-D matrix with shape (num_rois, num_timepoints)
     """
     if not isinstance(roi_time_series, np.ndarray):
-        raise ConnectivityError(
-            "ROI time series must be a NumPy ndarray."
-        )
+        raise ConnectivityError("ROI time series must be a NumPy ndarray.")
 
     if roi_time_series.ndim != 2:
         raise ConnectivityError(
@@ -152,14 +142,10 @@ def validate_roi_time_series(roi_time_series: np.ndarray) -> None:
     num_rois, num_timepoints = roi_time_series.shape
 
     if num_rois < 2:
-        raise ConnectivityError(
-            "At least 2 ROIs are required to compute connectivity."
-        )
+        raise ConnectivityError("At least 2 ROIs are required to compute connectivity.")
 
     if num_timepoints < 2:
-        raise ConnectivityError(
-            "At least 2 timepoints are required to compute connectivity."
-        )
+        raise ConnectivityError("At least 2 timepoints are required to compute connectivity.")
 
 
 def compute_pearson_correlation(roi_time_series: np.ndarray) -> np.ndarray:
@@ -175,9 +161,7 @@ def compute_pearson_correlation(roi_time_series: np.ndarray) -> np.ndarray:
     try:
         connectivity_matrix = np.corrcoef(roi_time_series, rowvar=True)
     except Exception as exc:
-        raise ConnectivityError(
-            "Failed to compute Pearson correlation."
-        ) from exc
+        raise ConnectivityError("Failed to compute Pearson correlation.") from exc
 
     connectivity_matrix = np.asarray(connectivity_matrix, dtype=np.float32)
 
@@ -213,23 +197,17 @@ def _normalized_cross_correlation(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     y = np.asarray(y, dtype=np.float32)
 
     if x.ndim != 1 or y.ndim != 1:
-        raise ConnectivityError(
-            "Individual signals for cross-correlation must be 1-D."
-        )
+        raise ConnectivityError("Individual signals for cross-correlation must be 1-D.")
 
     if len(x) != len(y):
-        raise ConnectivityError(
-            "Signals being compared must have the same number of timepoints."
-        )
+        raise ConnectivityError("Signals being compared must have the same number of timepoints.")
 
     try:
         Rxy = signal.correlate(x, y, mode="full")
         Rxx = signal.correlate(x, x, mode="full")
         Ryy = signal.correlate(y, y, mode="full")
     except Exception as exc:
-        raise ConnectivityError(
-            "Failed to compute cross-correlation."
-        ) from exc
+        raise ConnectivityError("Failed to compute cross-correlation.") from exc
 
     lags = np.arange(-len(x) + 1, len(x))
     lag_0 = int(np.where(lags == 0)[0][0])
@@ -269,7 +247,7 @@ def _cross_correlation_coef(x: np.ndarray, y: np.ndarray) -> float:
     lag_0 = int(np.where(lags == 0)[0][0])
 
     disp = max(1, round(len(x) * 0.10))
-    fragment = Rxy_norm[lag_0: lag_0 + disp]
+    fragment = Rxy_norm[lag_0 : lag_0 + disp]
 
     if fragment.size == 0:
         return 0.0
@@ -299,7 +277,7 @@ def _corr_cross_correlation_coef(x: np.ndarray, y: np.ndarray) -> float:
     lag_0 = int(np.where(lags == 0)[0][0])
 
     negative_lag = Rxy_norm[:lag_0]
-    positive_lag = Rxy_norm[lag_0 + 1:]
+    positive_lag = Rxy_norm[lag_0 + 1 :]
 
     if negative_lag.size == 0 or positive_lag.size == 0:
         return 0.0
@@ -344,8 +322,7 @@ def compute_cross_correlation(roi_time_series: np.ndarray) -> np.ndarray:
     for i in range(num_rois):
         for j in range(num_rois):
             connectivity_matrix[i, j] = _cross_correlation_coef(
-                roi_time_series[i],
-                roi_time_series[j]
+                roi_time_series[i], roi_time_series[j]
             )
 
     connectivity_matrix = np.nan_to_num(
@@ -383,8 +360,7 @@ def compute_corrected_cross_correlation(roi_time_series: np.ndarray) -> np.ndarr
     for i in range(num_rois):
         for j in range(num_rois):
             connectivity_matrix[i, j] = _corr_cross_correlation_coef(
-                roi_time_series[i],
-                roi_time_series[j]
+                roi_time_series[i], roi_time_series[j]
             )
 
     connectivity_matrix = np.nan_to_num(
@@ -400,6 +376,7 @@ def compute_corrected_cross_correlation(roi_time_series: np.ndarray) -> np.ndarr
 # ============================================================
 # Partial correlation
 # ============================================================
+
 
 def compute_partial_correlation(roi_time_series: np.ndarray) -> np.ndarray:
     """
@@ -451,6 +428,7 @@ def compute_partial_correlation(roi_time_series: np.ndarray) -> np.ndarray:
 # ============================================================
 # Spectral coherence measures (TR required)
 # ============================================================
+
 
 def compute_coherence(roi_time_series: np.ndarray, tr: float) -> np.ndarray:
     """
@@ -543,6 +521,7 @@ def compute_imaginary_coherence(roi_time_series: np.ndarray, tr: float) -> np.nd
 # AEC — Amplitude Envelope Correlation
 # ============================================================
 
+
 def compute_aec(roi_time_series: np.ndarray) -> np.ndarray:
     """
     Compute the ROI × ROI connectivity matrix using Amplitude Envelope
@@ -610,6 +589,7 @@ def compute_aec_orth(roi_time_series: np.ndarray) -> np.ndarray:
 # Mutual Information
 # ============================================================
 
+
 def _mi_pair(x: np.ndarray, y: np.ndarray, n_bins: int = 10) -> float:
     """
     Estimate mutual information between two 1-D signals using a joint histogram.
@@ -641,7 +621,7 @@ def compute_mutual_information(
     validate_roi_time_series(roi_time_series)
 
     n_samples = roi_time_series.shape[1]
-    if n_samples < n_bins ** 2 * 5:
+    if n_samples < n_bins**2 * 5:
         warnings.warn(
             f"Mutual information estimated with {n_bins} bins and only {n_samples} "
             "timepoints. The histogram estimator is highly biased for short series "
@@ -666,6 +646,7 @@ def compute_mutual_information(
 # ============================================================
 # Synchronisation Likelihood
 # ============================================================
+
 
 def _sync_likelihood_pair(
     x: np.ndarray,
@@ -692,8 +673,8 @@ def _sync_likelihood_pair(
         return 0.0
 
     # Phase-space embedding: shape (embed_len, m)
-    X_embed = np.column_stack([x[k * tau: k * tau + embed_len] for k in range(m)])
-    Y_embed = np.column_stack([y[k * tau: k * tau + embed_len] for k in range(m)])
+    X_embed = np.column_stack([x[k * tau : k * tau + embed_len] for k in range(m)])
+    Y_embed = np.column_stack([y[k * tau : k * tau + embed_len] for k in range(m)])
 
     Dx = cdist(X_embed, X_embed, metric="chebyshev")
     Dy = cdist(Y_embed, Y_embed, metric="chebyshev")
@@ -715,7 +696,7 @@ def _sync_likelihood_pair(
     Ry = (Dy < eps_y).astype(np.float64)
 
     n = embed_len
-    sl_raw = (Rx * Ry).sum() / (n * (n - 1)) - pref ** 2
+    sl_raw = (Rx * Ry).sum() / (n * (n - 1)) - pref**2
     max_sl = pref * (1.0 - pref)
     if max_sl <= 0:
         return 0.0
@@ -764,6 +745,7 @@ def compute_sync_likelihood(
 # Lagged Coherence (TR required)
 # ============================================================
 
+
 def compute_lagged_coherence(roi_time_series: np.ndarray, tr: float) -> np.ndarray:
     """
     Compute the ROI × ROI connectivity matrix using Lagged Coherence (LaC).
@@ -784,8 +766,7 @@ def compute_lagged_coherence(roi_time_series: np.ndarray, tr: float) -> np.ndarr
     validate_roi_time_series(roi_time_series)
     if tr is None or tr <= 0:
         raise ConnectivityError(
-            "A positive TR (repetition time, seconds) is required for lagged "
-            "coherence computation."
+            "A positive TR (repetition time, seconds) is required for lagged coherence computation."
         )
 
     fs = 1.0 / tr
@@ -812,10 +793,11 @@ def compute_lagged_coherence(roi_time_series: np.ndarray, tr: float) -> np.ndarr
 # Granger Causality (directed)
 # ============================================================
 
+
 def _ar_residual_var(y: np.ndarray, lag: int) -> float:
     """Fit a univariate AR(lag) model and return the residual variance."""
     T = len(y)
-    X = np.column_stack([y[lag - k: T - k] for k in range(1, lag + 1)])
+    X = np.column_stack([y[lag - k : T - k] for k in range(1, lag + 1)])
     y_t = y[lag:]
     coeff, _, _, _ = np.linalg.lstsq(X, y_t, rcond=None)
     residuals = y_t - X @ coeff
@@ -826,8 +808,8 @@ def _arx_residual_var(y: np.ndarray, x: np.ndarray, lag: int) -> float:
     """Fit a bivariate ARX(lag) model (y | x) and return the residual variance."""
     T = len(y)
     X = np.column_stack(
-        [y[lag - k: T - k] for k in range(1, lag + 1)]
-        + [x[lag - k: T - k] for k in range(1, lag + 1)]
+        [y[lag - k : T - k] for k in range(1, lag + 1)]
+        + [x[lag - k : T - k] for k in range(1, lag + 1)]
     )
     y_t = y[lag:]
     coeff, _, _, _ = np.linalg.lstsq(X, y_t, rcond=None)
@@ -894,6 +876,7 @@ def compute_granger_causality(
 # Transfer Entropy (directed)
 # ============================================================
 
+
 def _discretize_signal(x: np.ndarray, n_bins: int) -> np.ndarray:
     """Map signal values onto integer bin indices in [0, n_bins-1]."""
     x_min, x_max = float(x.min()), float(x.max())
@@ -918,7 +901,7 @@ def _transfer_entropy_pair(
     if T - lag < 2:
         return 0.0
 
-    xf = _discretize_signal(x[lag:], n_bins)       # X_future
+    xf = _discretize_signal(x[lag:], n_bins)  # X_future
     xp = _discretize_signal(x[: T - lag], n_bins)  # X_past
     yp = _discretize_signal(y[: T - lag], n_bins)  # Y_past
     n = len(xf)
@@ -928,12 +911,12 @@ def _transfer_entropy_pair(
     np.add.at(joint, (xf, xp, yp), 1.0)
     joint /= n
 
-    p_xf_xp = joint.sum(axis=2)   # p(x_future, x_past)
-    p_xp_yp = joint.sum(axis=0)   # p(x_past,   y_past)
-    p_xp = p_xf_xp.sum(axis=0)    # p(x_past)
+    p_xf_xp = joint.sum(axis=2)  # p(x_future, x_past)
+    p_xp_yp = joint.sum(axis=0)  # p(x_past,   y_past)
+    p_xp = p_xf_xp.sum(axis=0)  # p(x_past)
 
     te = 0.0
-    for idx in zip(*np.where(joint > 0)):
+    for idx in zip(*np.where(joint > 0), strict=False):
         i, j, k = idx
         numer = float(joint[i, j, k]) * float(p_xp[j])
         denom = float(p_xf_xp[i, j]) * float(p_xp_yp[j, k])
@@ -967,7 +950,7 @@ def compute_transfer_entropy(
     validate_roi_time_series(roi_time_series)
 
     n_samples = roi_time_series.shape[1]
-    if n_samples < n_bins ** 3 * 5:
+    if n_samples < n_bins**3 * 5:
         warnings.warn(
             f"Transfer entropy estimated with {n_bins} bins and only {n_samples} "
             "timepoints. The histogram estimator requires large sample sizes "
@@ -996,6 +979,7 @@ def compute_transfer_entropy(
 # Partial Directed Coherence (TR and model_order required)
 # ============================================================
 
+
 def _fit_mvar(data: np.ndarray, order: int):
     """
     Fit a Multivariate AutoRegressive (MVAR) model of given order using OLS.
@@ -1014,14 +998,18 @@ def _fit_mvar(data: np.ndarray, order: int):
     N, T = data.shape
     T_eff = T - order
 
-    Y = data[:, order:]                                # (N, T_eff)
-    X = np.vstack([data[:, order - k - 1: T - k - 1]  # (N·p, T_eff)
-                   for k in range(order)])
+    Y = data[:, order:]  # (N, T_eff)
+    X = np.vstack(
+        [
+            data[:, order - k - 1 : T - k - 1]  # (N·p, T_eff)
+            for k in range(order)
+        ]
+    )
 
     A_flat, _, _, _ = np.linalg.lstsq(X.T, Y.T, rcond=None)
-    A_flat = A_flat.T                                  # (N, N·p)
+    A_flat = A_flat.T  # (N, N·p)
 
-    A_list = [A_flat[:, k * N: (k + 1) * N] for k in range(order)]
+    A_list = [A_flat[:, k * N : (k + 1) * N] for k in range(order)]
 
     residuals = Y - A_flat @ X
     Sigma = (residuals @ residuals.T) / T_eff
@@ -1078,7 +1066,7 @@ def compute_pdc(
         # PDC_{ij}(f) = |Af_{ij}| / ||column j of Af||
         col_norms = np.sqrt(np.sum(np.abs(Af) ** 2, axis=0))  # (N,)
         col_norms[col_norms == 0] = 1.0
-        pdc_f = np.abs(Af) / col_norms[np.newaxis, :]         # (N, N)
+        pdc_f = np.abs(Af) / col_norms[np.newaxis, :]  # (N, N)
         pdc_accum += pdc_f
 
     return (pdc_accum / n_freqs).astype(np.float32)
@@ -1088,11 +1076,12 @@ def compute_pdc(
 # Phase Slope Index (TR required, directed)
 # ============================================================
 
+
 def compute_psi(
     roi_time_series: np.ndarray,
     tr: float,
     fmin: float = 0.0,
-    fmax: Optional[float] = None,
+    fmax: float | None = None,
 ) -> np.ndarray:
     """
     Compute the ROI × ROI directed connectivity matrix using the Phase Slope
@@ -1150,10 +1139,7 @@ def compute_psi(
     return conn
 
 
-def apply_connectivity_threshold(
-    connectivity_matrix: np.ndarray,
-    threshold: float
-) -> np.ndarray:
+def apply_connectivity_threshold(connectivity_matrix: np.ndarray, threshold: float) -> np.ndarray:
     """
     Apply an absolute threshold to a connectivity matrix.
 
@@ -1164,9 +1150,7 @@ def apply_connectivity_threshold(
       measures that do not naturally produce a unit diagonal.
     """
     if threshold < 0:
-        raise ConnectivityError(
-            "The connectivity threshold cannot be negative."
-        )
+        raise ConnectivityError("The connectivity threshold cannot be negative.")
 
     thresholded_matrix = np.array(connectivity_matrix, copy=True)
     mask = np.abs(thresholded_matrix) < threshold

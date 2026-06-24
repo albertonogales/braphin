@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import numpy as np
 
@@ -218,8 +217,9 @@ class PSIConnectivityStrategy(ConnectivityStrategy):
         return f"PSIConnectivityStrategy(tr={self._tr})"
 
 
-def get_connectivity_strategy(method: str, tr: Optional[float] = None,
-                               model_order: int = 1) -> ConnectivityStrategy:
+def get_connectivity_strategy(
+    method: str, tr: float | None = None, model_order: int = 1
+) -> ConnectivityStrategy:
     """
     Return the connectivity strategy for the requested method name.
 
@@ -248,6 +248,7 @@ def get_connectivity_strategy(method: str, tr: Optional[float] = None,
         Unknown method, or TR missing for a spectral method.
     """
     from .tools import SPECTRAL_MEASURES
+
     normalized = validate_connectivity_method(method)
 
     if normalized in SPECTRAL_MEASURES and (tr is None or tr <= 0):
@@ -257,15 +258,15 @@ def get_connectivity_strategy(method: str, tr: Optional[float] = None,
         )
 
     _map = {
-        "pearson_correlation":   PearsonConnectivityStrategy,
-        "cross_correlation":     CrossCorrelationConnectivityStrategy,
+        "pearson_correlation": PearsonConnectivityStrategy,
+        "cross_correlation": CrossCorrelationConnectivityStrategy,
         "corr_cross_correlation": CorrectedCrossCorrelationConnectivityStrategy,
-        "partial_correlation":   PartialCorrelationConnectivityStrategy,
-        "aec":                   AECConnectivityStrategy,
-        "aec_orth":              AECOrthConnectivityStrategy,
-        "mutual_information":    MutualInformationConnectivityStrategy,
-        "sync_likelihood":       SyncLikelihoodConnectivityStrategy,
-        "transfer_entropy":      TransferEntropyConnectivityStrategy,
+        "partial_correlation": PartialCorrelationConnectivityStrategy,
+        "aec": AECConnectivityStrategy,
+        "aec_orth": AECOrthConnectivityStrategy,
+        "mutual_information": MutualInformationConnectivityStrategy,
+        "sync_likelihood": SyncLikelihoodConnectivityStrategy,
+        "transfer_entropy": TransferEntropyConnectivityStrategy,
     }
     if normalized in _map:
         return _map[normalized]()

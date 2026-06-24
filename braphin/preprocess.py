@@ -1,7 +1,8 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+
 import numpy as np
+
 from .config import PreprocessConfig
 from .exceptions import PreprocessingError
 from .importBRAPHINData import BRAPHINInputBundle
@@ -35,16 +36,17 @@ class BRAPHINPreprocessBundle:
     - outlier_mask: boolean array (T,) marking outlier volumes,
                     or None if outlier detection was not applied
     """
-    fmri_path: Optional[str] = None
-    original_metadata: Optional[Dict[str, object]] = None
-    preprocessed_data: Optional[np.ndarray] = None
-    voxel_time_series: Optional[np.ndarray] = None
-    auxiliary_files: Dict[str, object] = field(default_factory=dict)
-    applied_steps: List[str] = field(default_factory=list)
-    pending_steps: List[str] = field(default_factory=list)
-    preprocess_metadata: Dict[str, object] = field(default_factory=dict)
-    motion_params: Optional[np.ndarray] = None
-    outlier_mask: Optional[np.ndarray] = None
+
+    fmri_path: str | None = None
+    original_metadata: dict[str, object] | None = None
+    preprocessed_data: np.ndarray | None = None
+    voxel_time_series: np.ndarray | None = None
+    auxiliary_files: dict[str, object] = field(default_factory=dict)
+    applied_steps: list[str] = field(default_factory=list)
+    pending_steps: list[str] = field(default_factory=list)
+    preprocess_metadata: dict[str, object] = field(default_factory=dict)
+    motion_params: np.ndarray | None = None
+    outlier_mask: np.ndarray | None = None
 
 
 class PreprocessBRAPHINData:
@@ -63,7 +65,7 @@ class PreprocessBRAPHINData:
     def __init__(
         self,
         input_bundle: BRAPHINInputBundle,
-        config: Optional[PreprocessConfig] = None,
+        config: PreprocessConfig | None = None,
     ):
         self.input_bundle = input_bundle
         self.config = config if config is not None else PreprocessConfig()
@@ -81,10 +83,10 @@ class PreprocessBRAPHINData:
         fmri_data = self._extract_fmri_array()
         self._validate_fmri_array(fmri_data)
 
-        applied_steps: List[str] = []
-        pending_steps: List[str] = []
-        motion_params: Optional[np.ndarray] = None
-        outlier_mask: Optional[np.ndarray] = None
+        applied_steps: list[str] = []
+        pending_steps: list[str] = []
+        motion_params: np.ndarray | None = None
+        outlier_mask: np.ndarray | None = None
 
         # -- 1. Clean non-finite values (always) --------------------------------
         fmri_data, replaced_values = self._replace_non_finite_values(fmri_data)
@@ -102,9 +104,7 @@ class PreprocessBRAPHINData:
 
         # -- 4. Outlier detection / scrubbing ------------------------------------
         if self.config.apply_outlier_detection:
-            fmri_data, outlier_mask = self._apply_outlier_detection(
-                fmri_data, motion_params
-            )
+            fmri_data, outlier_mask = self._apply_outlier_detection(fmri_data, motion_params)
             applied_steps.append("outlier_detection")
 
         # -- 5. Spatial smoothing -----------------------------------------------
@@ -148,13 +148,9 @@ class PreprocessBRAPHINData:
         if self.input_bundle is None:
             raise PreprocessingError("No valid BRAPHINInputBundle was provided.")
         if self.input_bundle.fmri_image is None:
-            raise PreprocessingError(
-                "The input bundle does not contain a loaded fMRI image."
-            )
+            raise PreprocessingError("The input bundle does not contain a loaded fMRI image.")
         if self.input_bundle.fmri_metadata is None:
-            raise PreprocessingError(
-                "The input bundle does not contain fMRI metadata."
-            )
+            raise PreprocessingError("The input bundle does not contain fMRI metadata.")
 
     def _extract_fmri_array(self) -> np.ndarray:
         try:
@@ -180,7 +176,7 @@ class PreprocessBRAPHINData:
     # Step 1 -- NaN / inf cleanup
     # --------------------------------------------------------------------------
 
-    def _replace_non_finite_values(self, fmri_data: np.ndarray) -> Tuple[np.ndarray, int]:
+    def _replace_non_finite_values(self, fmri_data: np.ndarray) -> tuple[np.ndarray, int]:
         """Replace NaN, +inf, -inf with 0.0. Returns (cleaned_array, n_replaced)."""
         mask = ~np.isfinite(fmri_data)
         n = int(np.sum(mask))
@@ -246,24 +242,21 @@ class PreprocessBRAPHINData:
         corrected = np.empty_like(fmri_data)
 
         for z in range(n_slices):
-            shift = ref_time - slice_times[z]     # positive -> shift forward in time
+            shift = ref_time - slice_times[z]  # positive -> shift forward in time
             t_query = np.clip(t_orig + shift, 0.0, (T - 1) * tr)
 
             # Fractional sample indices for linear interpolation
-            frac = t_query / tr                   # range [0, T-1]
+            frac = t_query / tr  # range [0, T-1]
             lo = np.floor(frac).astype(int)
             hi = np.minimum(lo + 1, T - 1)
-            alpha = frac - lo                     # interpolation weight toward hi
+            alpha = frac - lo  # interpolation weight toward hi
 
             # Extract the z-th slice along slice_axis, keeping the time axis last.
             # np.take returns an array with slice_axis removed; shape e.g. (X, Y, T)
             # for slice_axis=2, or (Y, Z, T) for slice_axis=0.
             slice_data = np.take(fmri_data, z, axis=slice_axis)  # (...spatial..., T)
 
-            interpolated = (
-                (1.0 - alpha) * slice_data[..., lo] +
-                alpha * slice_data[..., hi]
-            )
+            interpolated = (1.0 - alpha) * slice_data[..., lo] + alpha * slice_data[..., hi]
 
             # Write back using a dynamic index tuple
             idx = [slice(None)] * 4
@@ -276,9 +269,7 @@ class PreprocessBRAPHINData:
     # Step 3 -- Motion correction (rigid-body realignment)
     # --------------------------------------------------------------------------
 
-    def _apply_motion_correction(
-        self, fmri_data: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def _apply_motion_correction(self, fmri_data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Realigns each volume to the first volume (volume 0) using 6-parameter
         rigid-body registration (3 translations + 3 rotations) in world (mm)
@@ -323,8 +314,9 @@ class PreprocessBRAPHINData:
         motion_params = np.zeros((T, 6), dtype=np.float64)
         corrected = np.array(fmri_data, copy=True, dtype=np.float32)
 
-        def _build_T_world(tx: float, ty: float, tz: float,
-                           rx: float, ry: float, rz: float) -> np.ndarray:
+        def _build_T_world(
+            tx: float, ty: float, tz: float, rx: float, ry: float, rz: float
+        ) -> np.ndarray:
             """Build 4×4 world-space rigid-body forward transform.
 
             Rotation is applied about the world-space volume centre, then the
@@ -353,8 +345,12 @@ class PreprocessBRAPHINData:
             matrix_3x3 = T_map[:3, :3]
             offset_3 = T_map[:3, 3]
             transformed = affine_transform(
-                moving, matrix_3x3, offset=offset_3,
-                order=1, mode="constant", cval=0.0,
+                moving,
+                matrix_3x3,
+                offset=offset_3,
+                order=1,
+                mode="constant",
+                cval=0.0,
             )
             diff = transformed - reference
             return float(np.sum(diff * diff))
@@ -374,8 +370,12 @@ class PreprocessBRAPHINData:
             T_world = _build_T_world(*params)
             T_map = affine_inv @ np.linalg.inv(T_world) @ affine
             corrected[..., t] = affine_transform(
-                moving, T_map[:3, :3], offset=T_map[:3, 3],
-                order=1, mode="constant", cval=0.0,
+                moving,
+                T_map[:3, :3],
+                offset=T_map[:3, 3],
+                order=1,
+                mode="constant",
+                cval=0.0,
             ).astype(np.float32)
 
         return corrected, motion_params
@@ -387,8 +387,8 @@ class PreprocessBRAPHINData:
     def _apply_outlier_detection(
         self,
         fmri_data: np.ndarray,
-        motion_params: Optional[np.ndarray],
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        motion_params: np.ndarray | None,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Detects outlier volumes using DVARS and optionally FD, then handles
         them according to config.scrubbing_strategy.
@@ -414,14 +414,14 @@ class PreprocessBRAPHINData:
 
         # DVARS
         dvars = np.zeros(T, dtype=np.float64)
-        diff = np.diff(flat, axis=1)                        # (V, T-1)
-        dvars[1:] = np.sqrt(np.mean(diff ** 2, axis=0))
+        diff = np.diff(flat, axis=1)  # (V, T-1)
+        dvars[1:] = np.sqrt(np.mean(diff**2, axis=0))
 
         # FD (optional)
         fd = np.zeros(T, dtype=np.float64)
         if motion_params is not None:
             mp = motion_params.copy()
-            mp[:, 3:] *= 50.0      # rotations (rad) -> mm (50 mm brain radius)
+            mp[:, 3:] *= 50.0  # rotations (rad) -> mm (50 mm brain radius)
             fd[1:] = np.sum(np.abs(np.diff(mp, axis=0)), axis=1)
 
         # Outlier threshold via IQR
@@ -450,8 +450,7 @@ class PreprocessBRAPHINData:
                 if prev_ok is not None and next_ok is not None:
                     alpha = (t_idx - prev_ok) / (next_ok - prev_ok)
                     cleaned[..., t_idx] = (
-                        (1.0 - alpha) * fmri_data[..., prev_ok] +
-                        alpha * fmri_data[..., next_ok]
+                        (1.0 - alpha) * fmri_data[..., prev_ok] + alpha * fmri_data[..., next_ok]
                     ).astype(np.float32)
                 elif prev_ok is not None:
                     cleaned[..., t_idx] = fmri_data[..., prev_ok]
@@ -501,9 +500,7 @@ class PreprocessBRAPHINData:
 
         fwhm = float(self.config.smoothing_fwhm)
         if fwhm <= 0.0:
-            raise PreprocessingError(
-                f"smoothing_fwhm must be positive (got {fwhm})."
-            )
+            raise PreprocessingError(f"smoothing_fwhm must be positive (got {fwhm}).")
 
         # Voxel sizes from NIfTI header
         zooms = None
@@ -512,11 +509,11 @@ class PreprocessBRAPHINData:
         if zooms is not None and len(zooms) >= 3:
             voxel_sizes = np.array(zooms[:3], dtype=float)
         else:
-            voxel_sizes = np.array([2.0, 2.0, 2.0])   # assume 2 mm isotropic
+            voxel_sizes = np.array([2.0, 2.0, 2.0])  # assume 2 mm isotropic
 
         # FWHM -> sigma: sigma = FWHM / (2 sqrt(2 ln 2)) ~ FWHM / 2.3548
         fwhm_to_sigma = 1.0 / (2.0 * np.sqrt(2.0 * np.log(2.0)))
-        sigma_vox = (fwhm * fwhm_to_sigma) / voxel_sizes   # per axis
+        sigma_vox = (fwhm * fwhm_to_sigma) / voxel_sizes  # per axis
 
         T = fmri_data.shape[-1]
         smoothed = np.empty_like(fmri_data)
@@ -541,9 +538,9 @@ class PreprocessBRAPHINData:
         fmri_data: np.ndarray,
         voxel_time_series: np.ndarray,
         replaced_values: int,
-        motion_params: Optional[np.ndarray],
-        outlier_mask: Optional[np.ndarray],
-    ) -> Dict[str, object]:
+        motion_params: np.ndarray | None,
+        outlier_mask: np.ndarray | None,
+    ) -> dict[str, object]:
         original_shape = self.input_bundle.fmri_metadata.get("shape")
         n_outliers = int(np.sum(outlier_mask)) if outlier_mask is not None else 0
 
@@ -562,7 +559,9 @@ class PreprocessBRAPHINData:
             "outlier_detection_applied": self.config.apply_outlier_detection,
             "smoothing_applied": self.config.apply_smoothing,
             "n_outlier_volumes": n_outliers,
-            "motion_params_shape": tuple(motion_params.shape) if motion_params is not None else None,
+            "motion_params_shape": tuple(motion_params.shape)
+            if motion_params is not None
+            else None,
             "implemented_scope": [
                 "replace_non_finite_values",
                 "slice_timing_correction",
@@ -597,6 +596,7 @@ class PreprocessBRAPHINData:
 # ---------------------------------------------------------------------------
 # Module-level utility
 # ---------------------------------------------------------------------------
+
 
 def get_motion_confounds(preprocess_bundle: BRAPHINPreprocessBundle) -> np.ndarray:
     """

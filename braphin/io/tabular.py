@@ -12,14 +12,13 @@ later pipeline stages.
 """
 
 from pathlib import Path
-from typing import Union
 
 import numpy as np
 
 from ..exceptions import BRAPHINFormatError, BRAPHINInputError
 
 
-def load_npy_file(file_path: Union[str, Path]) -> np.ndarray:
+def load_npy_file(file_path: str | Path) -> np.ndarray:
     """Load a ``.npy`` file and return its contents as a NumPy array."""
     file_path = Path(file_path)
 
@@ -32,14 +31,12 @@ def load_npy_file(file_path: Union[str, Path]) -> np.ndarray:
     try:
         data = np.load(file_path, allow_pickle=True)
     except Exception as exc:
-        raise BRAPHINFormatError(
-            f"Failed to load .npy file: {file_path}"
-        ) from exc
+        raise BRAPHINFormatError(f"Failed to load .npy file: {file_path}") from exc
 
     return data
 
 
-def load_delimited_file(file_path: Union[str, Path], delimiter: str) -> np.ndarray:
+def load_delimited_file(file_path: str | Path, delimiter: str) -> np.ndarray:
     """
     Load a delimited text file (``.csv`` or ``.tsv``) as a numeric array.
 
@@ -55,7 +52,7 @@ def load_delimited_file(file_path: Union[str, Path], delimiter: str) -> np.ndarr
 
     try:
         # Peek at the first line to detect a text header.
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             first_line = f.readline()
 
         # If the first cell cannot be parsed as a float, the row is a header.
@@ -78,14 +75,12 @@ def load_delimited_file(file_path: Union[str, Path], delimiter: str) -> np.ndarr
     except (BRAPHINInputError, BRAPHINFormatError):
         raise
     except Exception as exc:
-        raise BRAPHINFormatError(
-            f"Failed to load tabular file: {file_path}"
-        ) from exc
+        raise BRAPHINFormatError(f"Failed to load tabular file: {file_path}") from exc
 
     return data
 
 
-def load_csv_file(file_path: Union[str, Path]) -> np.ndarray:
+def load_csv_file(file_path: str | Path) -> np.ndarray:
     """Load a ``.csv`` file as a numeric array."""
     file_path = Path(file_path)
 
@@ -95,7 +90,7 @@ def load_csv_file(file_path: Union[str, Path]) -> np.ndarray:
     return load_delimited_file(file_path, delimiter=",")
 
 
-def load_tsv_file(file_path: Union[str, Path]) -> np.ndarray:
+def load_tsv_file(file_path: str | Path) -> np.ndarray:
     """Load a ``.tsv`` file as a numeric array."""
     file_path = Path(file_path)
 
@@ -105,7 +100,7 @@ def load_tsv_file(file_path: Union[str, Path]) -> np.ndarray:
     return load_delimited_file(file_path, delimiter="\t")
 
 
-def load_tabular_file(file_path: Union[str, Path]) -> np.ndarray:
+def load_tabular_file(file_path: str | Path) -> np.ndarray:
     """
     Dispatch to the appropriate loader based on file extension.
 

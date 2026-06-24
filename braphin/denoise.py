@@ -1,7 +1,8 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+
 import numpy as np
+
 from .config import DenoiseConfig
 from .exceptions import DenoisingError
 from .preprocess import BRAPHINPreprocessBundle
@@ -25,15 +26,16 @@ class BRAPHINDenoiseBundle:
     - pending_steps: steps requested in config but not executed
     - denoise_metadata: traceability information
     """
-    fmri_path: Optional[str] = None
-    original_metadata: Optional[Dict[str, object]] = None
-    preprocess_metadata: Optional[Dict[str, object]] = None
-    denoised_data: Optional[np.ndarray] = None
-    voxel_time_series: Optional[np.ndarray] = None
-    auxiliary_files: Dict[str, object] = field(default_factory=dict)
-    applied_steps: List[str] = field(default_factory=list)
-    pending_steps: List[str] = field(default_factory=list)
-    denoise_metadata: Dict[str, object] = field(default_factory=dict)
+
+    fmri_path: str | None = None
+    original_metadata: dict[str, object] | None = None
+    preprocess_metadata: dict[str, object] | None = None
+    denoised_data: np.ndarray | None = None
+    voxel_time_series: np.ndarray | None = None
+    auxiliary_files: dict[str, object] = field(default_factory=dict)
+    applied_steps: list[str] = field(default_factory=list)
+    pending_steps: list[str] = field(default_factory=list)
+    denoise_metadata: dict[str, object] = field(default_factory=dict)
 
 
 class DenoiseBRAPHINData:
@@ -53,7 +55,7 @@ class DenoiseBRAPHINData:
     def __init__(
         self,
         preprocess_bundle: BRAPHINPreprocessBundle,
-        config: Optional[DenoiseConfig] = None,
+        config: DenoiseConfig | None = None,
     ):
         self.preprocess_bundle = preprocess_bundle
         self.config = config if config is not None else DenoiseConfig()
@@ -67,8 +69,8 @@ class DenoiseBRAPHINData:
             copy=True,
         )
 
-        applied_steps: List[str] = []
-        pending_steps: List[str] = []
+        applied_steps: list[str] = []
+        pending_steps: list[str] = []
         confounds_name = None
         confounds_shape = None
         n_scrubbed = 0
@@ -91,12 +93,8 @@ class DenoiseBRAPHINData:
                     # Filter signal and confounds with the same filter
                     voxel_time_series = self._apply_bandpass_filter(voxel_time_series)
                     applied_steps.append("bandpass_filtering")
-                    confounds_matrix = self._apply_bandpass_filter_to_confounds(
-                        confounds_matrix
-                    )
-                voxel_time_series = self._regress_confounds(
-                    voxel_time_series, confounds_matrix
-                )
+                    confounds_matrix = self._apply_bandpass_filter_to_confounds(confounds_matrix)
+                voxel_time_series = self._regress_confounds(voxel_time_series, confounds_matrix)
                 applied_steps.append("confound_regression")
                 confounds_shape = tuple(confounds_matrix.shape)
             else:
@@ -136,17 +134,11 @@ class DenoiseBRAPHINData:
         if self.preprocess_bundle is None:
             raise DenoisingError("No valid BRAPHINPreprocessBundle was provided.")
         if self.preprocess_bundle.preprocessed_data is None:
-            raise DenoisingError(
-                "The preprocess bundle does not contain 4D preprocessed data."
-            )
+            raise DenoisingError("The preprocess bundle does not contain 4D preprocessed data.")
         if self.preprocess_bundle.voxel_time_series is None:
-            raise DenoisingError(
-                "The preprocess bundle does not contain a voxel x time matrix."
-            )
+            raise DenoisingError("The preprocess bundle does not contain a voxel x time matrix.")
         if not isinstance(self.preprocess_bundle.voxel_time_series, np.ndarray):
-            raise DenoisingError(
-                "The voxel x time representation is not a NumPy ndarray."
-            )
+            raise DenoisingError("The voxel x time representation is not a NumPy ndarray.")
 
     # -------------------------------------------------------------------------
     # Step 1 -- Confound regression
@@ -154,9 +146,9 @@ class DenoiseBRAPHINData:
 
     def _find_confounds_matrix(
         self,
-        auxiliary_files: Dict[str, object],
+        auxiliary_files: dict[str, object],
         num_timepoints: int,
-    ) -> Tuple[Optional[str], Optional[np.ndarray]]:
+    ) -> tuple[str | None, np.ndarray | None]:
         """
         Search auxiliary_files for a confound matrix whose row count matches
         num_timepoints.
@@ -235,7 +227,7 @@ class DenoiseBRAPHINData:
                 "Check your confound file for missing values (e.g. missing first-volume FD)."
             )
 
-        signal_tv = voxel_time_series.T     # (T, V)
+        signal_tv = voxel_time_series.T  # (T, V)
 
         # Standardise confounds
         mu = np.mean(confounds_matrix, axis=0, keepdims=True)
@@ -258,9 +250,7 @@ class DenoiseBRAPHINData:
     # Step 2 -- Scrubbing
     # -------------------------------------------------------------------------
 
-    def _apply_scrubbing(
-        self, voxel_time_series: np.ndarray
-    ) -> Tuple[np.ndarray, int]:
+    def _apply_scrubbing(self, voxel_time_series: np.ndarray) -> tuple[np.ndarray, int]:
         """
         Interpolates (or removes) outlier volumes.
 
@@ -282,7 +272,7 @@ class DenoiseBRAPHINData:
             # outlier_mask already computed.
             dvars = np.zeros(T, dtype=np.float64)
             diff = np.diff(voxel_time_series.astype(np.float64), axis=1)
-            dvars[1:] = np.sqrt(np.mean(diff ** 2, axis=0))
+            dvars[1:] = np.sqrt(np.mean(diff**2, axis=0))
             dvars_vals = dvars[dvars > 0]
             if len(dvars_vals) > 0:
                 q75, q25 = np.percentile(dvars_vals, [75, 25])
@@ -309,8 +299,8 @@ class DenoiseBRAPHINData:
             if prev_ok is not None and next_ok is not None:
                 alpha = (t_idx - prev_ok) / (next_ok - prev_ok)
                 cleaned[:, t_idx] = (
-                    (1.0 - alpha) * voxel_time_series[:, prev_ok] +
-                    alpha * voxel_time_series[:, next_ok]
+                    (1.0 - alpha) * voxel_time_series[:, prev_ok]
+                    + alpha * voxel_time_series[:, next_ok]
                 ).astype(np.float32)
             elif prev_ok is not None:
                 cleaned[:, t_idx] = voxel_time_series[:, prev_ok]
@@ -347,9 +337,7 @@ class DenoiseBRAPHINData:
 
         return butter(4, [low, high], btype="bandpass", output="sos", fs=fs)
 
-    def _apply_bandpass_filter_to_confounds(
-        self, confounds_matrix: np.ndarray
-    ) -> np.ndarray:
+    def _apply_bandpass_filter_to_confounds(self, confounds_matrix: np.ndarray) -> np.ndarray:
         """
         Apply the same Butterworth bandpass filter used on the signal to each
         column of the confounds matrix (shape T x K, time axis=0).
@@ -370,9 +358,7 @@ class DenoiseBRAPHINData:
         filtered = sosfiltfilt(sos, confounds_matrix.astype(np.float64), axis=0)
         return filtered.astype(np.float32)
 
-    def _apply_bandpass_filter(
-        self, voxel_time_series: np.ndarray
-    ) -> np.ndarray:
+    def _apply_bandpass_filter(self, voxel_time_series: np.ndarray) -> np.ndarray:
         """
         Applies a zero-phase 4th-order Butterworth bandpass filter to every
         voxel's time series.
@@ -420,17 +406,15 @@ class DenoiseBRAPHINData:
         try:
             return voxel_time_series.reshape(shape).astype(np.float32)
         except Exception as exc:
-            raise DenoisingError(
-                "Could not reconstruct the 4D volume after denoising."
-            ) from exc
+            raise DenoisingError("Could not reconstruct the 4D volume after denoising.") from exc
 
     def _build_denoise_metadata(
         self,
         voxel_time_series: np.ndarray,
-        confounds_name: Optional[str],
-        confounds_shape: Optional[Tuple[int, int]],
+        confounds_name: str | None,
+        confounds_shape: tuple[int, int] | None,
         n_scrubbed: int = 0,
-    ) -> Dict[str, object]:
+    ) -> dict[str, object]:
         return {
             "denoised_4d_shape": tuple(self.preprocess_bundle.preprocessed_data.shape),
             "denoised_voxel_time_series_shape": tuple(voxel_time_series.shape),

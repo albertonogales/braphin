@@ -4,9 +4,9 @@ Stage 5 of the BRAPHIN pipeline: functional connectivity modelling.
 Computes the ROI × ROI connectivity matrix from the parcellated time series
 produced by :class:`~braphin.transform.TransformBRAPHINData`.
 """
+
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -52,20 +52,21 @@ class BRAPHINConnectivityBundle:
     connectivity_metadata : dict
         Traceability information (method, shape, statistics, …).
     """
-    fmri_path: Optional[str] = None
-    original_metadata: Optional[Dict[str, object]] = None
-    preprocess_metadata: Optional[Dict[str, object]] = None
-    denoise_metadata: Optional[Dict[str, object]] = None
-    transform_metadata: Optional[Dict[str, object]] = None
-    atlas_name: Optional[str] = None
-    roi_labels: List[str] = field(default_factory=list)
-    roi_time_series: Optional[np.ndarray] = None
-    connectivity_matrix: Optional[np.ndarray] = None
-    dynamic_connectivity_matrices: Optional[np.ndarray] = None
-    window_centers_sec: Optional[List[float]] = None
-    applied_steps: List[str] = field(default_factory=list)
-    pending_steps: List[str] = field(default_factory=list)
-    connectivity_metadata: Dict[str, object] = field(default_factory=dict)
+
+    fmri_path: str | None = None
+    original_metadata: dict[str, object] | None = None
+    preprocess_metadata: dict[str, object] | None = None
+    denoise_metadata: dict[str, object] | None = None
+    transform_metadata: dict[str, object] | None = None
+    atlas_name: str | None = None
+    roi_labels: list[str] = field(default_factory=list)
+    roi_time_series: np.ndarray | None = None
+    connectivity_matrix: np.ndarray | None = None
+    dynamic_connectivity_matrices: np.ndarray | None = None
+    window_centers_sec: list[float] | None = None
+    applied_steps: list[str] = field(default_factory=list)
+    pending_steps: list[str] = field(default_factory=list)
+    connectivity_metadata: dict[str, object] = field(default_factory=dict)
 
 
 def _compute_sliding_window_dfc(
@@ -73,7 +74,7 @@ def _compute_sliding_window_dfc(
     strategy,
     window_size: float,
     tr: float,
-    step_size: Optional[float] = None,
+    step_size: float | None = None,
 ):
     """
     Compute sliding-window dynamic functional connectivity (dFC).
@@ -116,7 +117,7 @@ def _compute_sliding_window_dfc(
         )
 
     dynamic_matrices = []
-    window_centers: List[float] = []
+    window_centers: list[float] = []
 
     for start in starts:
         end = start + window_samples
@@ -127,7 +128,9 @@ def _compute_sliding_window_dfc(
 
     logger.info(
         "[BRAPHIN] Sliding-window dFC: %d windows, window=%.1fs, step=%.1fs",
-        len(dynamic_matrices), window_size, step_size,
+        len(dynamic_matrices),
+        window_size,
+        step_size,
     )
 
     return np.stack(dynamic_matrices, axis=0), window_centers
@@ -146,7 +149,7 @@ class ModelBRAPHINConnectivityData:
     def __init__(
         self,
         transform_bundle: BRAPHINTransformBundle,
-        config: Optional[ConnectivityConfig] = None,
+        config: ConnectivityConfig | None = None,
     ):
         self.transform_bundle = transform_bundle
         self.config = config if config is not None else ConnectivityConfig()
@@ -190,14 +193,12 @@ class ModelBRAPHINConnectivityData:
                     "ConnectivityConfig.tr must be set (> 0) for sliding-window "
                     "dynamic connectivity."
                 )
-            dynamic_connectivity_matrices, window_centers_sec = (
-                _compute_sliding_window_dfc(
-                    roi_time_series=roi_time_series,
-                    strategy=strategy,
-                    window_size=self.config.window_size,
-                    tr=self.config.tr,
-                    step_size=self.config.step_size,
-                )
+            dynamic_connectivity_matrices, window_centers_sec = _compute_sliding_window_dfc(
+                roi_time_series=roi_time_series,
+                strategy=strategy,
+                window_size=self.config.window_size,
+                tr=self.config.tr,
+                step_size=self.config.step_size,
             )
             applied_steps.append("windowed_dynamic_connectivity")
             # Static summary = mean over all windows
@@ -244,19 +245,13 @@ class ModelBRAPHINConnectivityData:
     def _validate_transform_bundle(self) -> None:
         """Verify that the transform bundle contains the required data."""
         if self.transform_bundle is None:
-            raise ConnectivityError(
-                "A valid BRAPHINTransformBundle must be provided."
-            )
+            raise ConnectivityError("A valid BRAPHINTransformBundle must be provided.")
 
         if self.transform_bundle.roi_time_series is None:
-            raise ConnectivityError(
-                "The transform bundle does not contain roi_time_series."
-            )
+            raise ConnectivityError("The transform bundle does not contain roi_time_series.")
 
         if not isinstance(self.transform_bundle.roi_time_series, np.ndarray):
-            raise ConnectivityError(
-                "roi_time_series must be a NumPy ndarray."
-            )
+            raise ConnectivityError("roi_time_series must be a NumPy ndarray.")
 
         if self.transform_bundle.roi_time_series.ndim != 2:
             raise ConnectivityError(
@@ -270,8 +265,8 @@ class ModelBRAPHINConnectivityData:
         self,
         roi_time_series: np.ndarray,
         connectivity_matrix: np.ndarray,
-        dynamic_connectivity_matrices: Optional[np.ndarray] = None,
-    ) -> Dict[str, object]:
+        dynamic_connectivity_matrices: np.ndarray | None = None,
+    ) -> dict[str, object]:
         """Build traceability metadata for the connectivity stage."""
         off_diagonal_mask = ~np.eye(connectivity_matrix.shape[0], dtype=bool)
         off_diagonal_values = connectivity_matrix[off_diagonal_mask]
@@ -283,7 +278,8 @@ class ModelBRAPHINConnectivityData:
             "step_size": self.config.step_size,
             "n_windows": (
                 int(dynamic_connectivity_matrices.shape[0])
-                if dynamic_connectivity_matrices is not None else None
+                if dynamic_connectivity_matrices is not None
+                else None
             ),
             "tr": self.config.tr,
             "num_rois": int(roi_time_series.shape[0]),
@@ -294,9 +290,7 @@ class ModelBRAPHINConnectivityData:
             "matrix_is_symmetric": bool(
                 np.allclose(connectivity_matrix, connectivity_matrix.T, atol=1e-5)
             ),
-            "diagonal_all_ones": bool(
-                np.allclose(np.diag(connectivity_matrix), 1.0, atol=1e-5)
-            ),
+            "diagonal_all_ones": bool(np.allclose(np.diag(connectivity_matrix), 1.0, atol=1e-5)),
             "min_connectivity": (
                 float(np.min(off_diagonal_values)) if off_diagonal_values.size > 0 else 0.0
             ),
@@ -320,7 +314,9 @@ class ModelBRAPHINConnectivityData:
         logger.info("[BRAPHIN] Connectivity computed")
         logger.info("  fMRI path:            %s", bundle.fmri_path)
         logger.info("  Method:               %s", bundle.connectivity_metadata.get("method"))
-        logger.info("  ROI x time shape:     %s", bundle.connectivity_metadata.get("roi_time_series_shape"))
+        logger.info(
+            "  ROI x time shape:     %s", bundle.connectivity_metadata.get("roi_time_series_shape")
+        )
         logger.info(
             "  Connectivity shape:   %s",
             bundle.connectivity_metadata.get("connectivity_matrix_shape"),

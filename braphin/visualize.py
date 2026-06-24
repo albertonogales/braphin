@@ -44,12 +44,12 @@ def visualize_html(graph, name: str, auto_open: bool = True) -> None:
         Open the HTML file in the default browser after writing.
     """
     fig = draw_graph(graph)
-    fig.update_layout(title='', plot_bgcolor='white')
+    fig.update_layout(title="", plot_bgcolor="white")
     fig.write_html(
-        str(name) + '_plot.html',
+        str(name) + "_plot.html",
         auto_open=auto_open,
-        default_height='100%',
-        default_width='100%',
+        default_height="100%",
+        default_width="100%",
     )
 
 
@@ -68,13 +68,14 @@ def visualize_png(graph, name: str) -> None:
         Output file stem.  The file is written to ``<name>.png``.
     """
     fig = draw_graph(graph)
-    fig.update_layout(title='', plot_bgcolor='white')
-    fig.write_image(str(name) + '.png', format='png', height=1000, width=1800)
+    fig.update_layout(title="", plot_bgcolor="white")
+    fig.write_image(str(name) + ".png", format="png", height=1000, width=1800)
 
 
 # ---------------------------------------------------------------------------
 # 3D brain layout helpers (extracted from ModelMRIData)
 # ---------------------------------------------------------------------------
+
 
 def _infer_lr_partner(label):
     """
@@ -171,30 +172,18 @@ def _build_symmetric_axial_layout(roi_centroids_3d):
     # --------------------------------------------------
     # 2) Automatic fallback for atlases without L/R names
     # --------------------------------------------------
-    remaining_left = [
-        node for node, (x, _, _) in raw.items()
-        if x < 0 and node not in processed
-    ]
-    remaining_right = [
-        node for node, (x, _, _) in raw.items()
-        if x > 0 and node not in processed
-    ]
+    remaining_left = [node for node, (x, _, _) in raw.items() if x < 0 and node not in processed]
+    remaining_right = [node for node, (x, _, _) in raw.items() if x > 0 and node not in processed]
 
     if remaining_left and remaining_right:
-        left_yz = np.array(
-            [[raw[node][1], raw[node][2]] for node in remaining_left],
-            dtype=float
-        )
-        right_yz = np.array(
-            [[raw[node][1], raw[node][2]] for node in remaining_right],
-            dtype=float
-        )
+        left_yz = np.array([[raw[node][1], raw[node][2]] for node in remaining_left], dtype=float)
+        right_yz = np.array([[raw[node][1], raw[node][2]] for node in remaining_right], dtype=float)
 
         # Match each left ROI with the most similar right ROI in (y, z)
         cost = np.sum((left_yz[:, None, :] - right_yz[None, :, :]) ** 2, axis=2)
         row_ind, col_ind = linear_sum_assignment(cost)
 
-        for i, j in zip(row_ind, col_ind):
+        for i, j in zip(row_ind, col_ind, strict=False):
             left = remaining_left[i]
             right = remaining_right[j]
 
@@ -277,30 +266,18 @@ def _build_symmetric_coronal_layout(roi_centroids_3d):
     # --------------------------------------------------
     # 2) Automatic fallback for atlases without L/R names
     # --------------------------------------------------
-    remaining_left = [
-        node for node, (x, _, _) in raw.items()
-        if x < 0 and node not in processed
-    ]
-    remaining_right = [
-        node for node, (x, _, _) in raw.items()
-        if x > 0 and node not in processed
-    ]
+    remaining_left = [node for node, (x, _, _) in raw.items() if x < 0 and node not in processed]
+    remaining_right = [node for node, (x, _, _) in raw.items() if x > 0 and node not in processed]
 
     if remaining_left and remaining_right:
-        left_yz = np.array(
-            [[raw[node][1], raw[node][2]] for node in remaining_left],
-            dtype=float
-        )
-        right_yz = np.array(
-            [[raw[node][1], raw[node][2]] for node in remaining_right],
-            dtype=float
-        )
+        left_yz = np.array([[raw[node][1], raw[node][2]] for node in remaining_left], dtype=float)
+        right_yz = np.array([[raw[node][1], raw[node][2]] for node in remaining_right], dtype=float)
 
         # Match each left ROI with the most similar right ROI in (y, z)
         cost = np.sum((left_yz[:, None, :] - right_yz[None, :, :]) ** 2, axis=2)
         row_ind, col_ind = linear_sum_assignment(cost)
 
-        for i, j in zip(row_ind, col_ind):
+        for i, j in zip(row_ind, col_ind, strict=False):
             left = remaining_left[i]
             right = remaining_right[j]
 
@@ -340,9 +317,7 @@ def build_fmri_graph(
     """
     matrix = np.array(connectivity_matrix, copy=True)
     if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
-        raise ValueError(
-            "The connectivity matrix must be square to build the graph."
-        )
+        raise ValueError("The connectivity matrix must be square to build the graph.")
 
     is_symmetric = np.allclose(matrix, matrix.T, atol=1e-5)
 
@@ -352,7 +327,7 @@ def build_fmri_graph(
         G = nx.from_numpy_array(matrix, create_using=nx.DiGraph)
 
     if roi_labels is not None and len(roi_labels) == matrix.shape[0]:
-        mapping = {index: label for index, label in enumerate(roi_labels)}
+        mapping = dict(enumerate(roi_labels))
         G = nx.relabel_nodes(G, mapping)
 
     G.graph["modality"] = "fmri"
@@ -379,11 +354,7 @@ def build_fmri_graph(
         if projection == "axial":
             # Top view: X-Y plane
             # Symmetry is applied here for visualisation only.
-            axial_centroids = {
-                node: pos3d[node]
-                for node in G.nodes()
-                if node in pos3d
-            }
+            axial_centroids = {node: pos3d[node] for node in G.nodes() if node in pos3d}
 
             pos2d, depth = _build_symmetric_axial_layout(axial_centroids)
 
@@ -392,11 +363,7 @@ def build_fmri_graph(
 
         elif projection == "coronal":
             # Front view: X-Z plane with left/right visual symmetry only.
-            coronal_centroids = {
-                node: pos3d[node]
-                for node in G.nodes()
-                if node in pos3d
-            }
+            coronal_centroids = {node: pos3d[node] for node in G.nodes() if node in pos3d}
 
             pos2d, depth = _build_symmetric_coronal_layout(coronal_centroids)
 
@@ -425,7 +392,7 @@ def build_fmri_graph(
         if depth:
             nx.set_node_attributes(G, depth, "depth")
 
-    for u, v, data in G.edges(data=True):
+    for _u, _v, data in G.edges(data=True):
         weight = float(data.get("weight", 1.0))
         thickness = max(0.5, abs(weight) * 6)
         data["thickness"] = thickness

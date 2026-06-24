@@ -42,7 +42,7 @@ class BRAPHINGraph(Graph):
 
     def __init__(self):
         super().__init__()
-        self.modality = None   # "eeg" | "fmri"
+        self.modality = None  # "eeg" | "fmri"
 
     # ------------------------------------------------------------------ #
     #  load_data                                                           #
@@ -51,7 +51,7 @@ class BRAPHINGraph(Graph):
     def load_data(
         self,
         path,
-        exclude=[None],
+        exclude=None,
         electrode_montage_path=None,
         modality=None,
         **kwargs,
@@ -77,6 +77,8 @@ class BRAPHINGraph(Graph):
         if modality == "mri":
             modality = "fmri"
         self.modality = modality
+        if exclude is None:
+            exclude = [None]
 
         # ── EEG: delegate entirely to the parent class ──────────────────
         if modality in ("eeg", None):
@@ -92,7 +94,7 @@ class BRAPHINGraph(Graph):
             bundle = input_data.load()
 
             # Store exactly what the parent's modelate() expects.
-            self.data = bundle.raw_data        # MNE Raw
+            self.data = bundle.raw_data  # MNE Raw
             self.ch_names = bundle.ch_names
             self.metadata = bundle.eeg_metadata or {}
 
@@ -103,24 +105,22 @@ class BRAPHINGraph(Graph):
             from braphin.importBRAPHINData import InputfMRIData
 
             input_data = InputfMRIData(path, **kwargs)
-            self.data = input_data.load()      # BRAPHINInputBundle
+            self.data = input_data.load()  # BRAPHINInputBundle
 
             # ROI labels are not available until after Transform; ch_names
             # will be populated by modelate() once parcellation runs.
             self.ch_names = []
             self.metadata = {
-                "fmri_path":       self.data.fmri_path,
-                "fmri_metadata":   self.data.fmri_metadata,
+                "fmri_path": self.data.fmri_path,
+                "fmri_metadata": self.data.fmri_metadata,
                 "auxiliary_files": self.data.auxiliary_files,
-                "input_stage":     "import",
+                "input_stage": "import",
             }
 
             input_data.display_info(self.data)
 
         else:
-            raise ValueError(
-                f"Unsupported modality '{modality}'. Use 'eeg' or 'fmri'."
-            )
+            raise ValueError(f"Unsupported modality '{modality}'. Use 'eeg' or 'fmri'.")
 
     # ------------------------------------------------------------------ #
     #  modelate                                                            #
@@ -130,7 +130,7 @@ class BRAPHINGraph(Graph):
         self,
         window_size,
         connectivity,
-        bands=[None],
+        bands=None,
         threshold=None,
         **kwargs,
     ):
@@ -157,6 +157,8 @@ class BRAPHINGraph(Graph):
         G : NetworkX Graph
         connectivity_matrix : np.ndarray  (N × N)
         """
+        if bands is None:
+            bands = [None]
         # ── EEG: reuse the parent's implementation verbatim ─────────────
         if self.modality in ("eeg", None):
             return super().modelate(window_size, connectivity, bands, threshold)
@@ -190,6 +192,4 @@ class BRAPHINGraph(Graph):
             return G, connectivity_matrix
 
         else:
-            raise ValueError(
-                f"Unsupported modality '{self.modality}'. Use 'eeg' or 'fmri'."
-            )
+            raise ValueError(f"Unsupported modality '{self.modality}'. Use 'eeg' or 'fmri'.")

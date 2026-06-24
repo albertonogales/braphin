@@ -40,8 +40,6 @@ Newman (2004). Fast algorithm for detecting community structure in networks.
 from __future__ import annotations
 
 import logging
-import warnings
-from typing import Dict, List, Optional
 
 import networkx as nx
 import numpy as np
@@ -52,6 +50,7 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 # Internal helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _undirected_clean(G: nx.Graph) -> nx.Graph:
     """Return an undirected, self-loop-free, unweighted copy of *G*."""
@@ -73,6 +72,7 @@ def _largest_cc(G: nx.Graph) -> nx.Graph:
 # ─────────────────────────────────────────────────────────────────────────────
 # Modularity
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def compute_modularity(G: nx.Graph) -> float:
     """
@@ -96,9 +96,7 @@ def compute_modularity(G: nx.Graph) -> float:
     G_clean = _undirected_clean(G)
     if G_clean.number_of_edges() == 0:
         return 0.0
-    communities = nx.community.greedy_modularity_communities(
-        G_clean, weight="weight"
-    )
+    communities = nx.community.greedy_modularity_communities(G_clean, weight="weight")
     return float(nx.community.modularity(G_clean, communities, weight="weight"))
 
 
@@ -106,7 +104,8 @@ def compute_modularity(G: nx.Graph) -> float:
 # Rich-club coefficient
 # ─────────────────────────────────────────────────────────────────────────────
 
-def compute_rich_club_coefficient(G: nx.Graph) -> Dict[int, float]:
+
+def compute_rich_club_coefficient(G: nx.Graph) -> dict[int, float]:
     """
     Compute the rich-club coefficient Φ(k) for all degree values k present in
     the graph.
@@ -142,7 +141,8 @@ def compute_rich_club_coefficient(G: nx.Graph) -> Dict[int, float]:
 # Main entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
-def compute_graph_metrics(G: nx.Graph) -> Dict[str, object]:
+
+def compute_graph_metrics(G: nx.Graph) -> dict[str, object]:
     """
     Compute a comprehensive set of graph-theoretic metrics on a brain
     connectivity graph.
@@ -171,7 +171,7 @@ def compute_graph_metrics(G: nx.Graph) -> Dict[str, object]:
     """
     G_clean = _undirected_clean(G)
     n = G_clean.number_of_nodes()
-    metrics: Dict[str, object] = {}
+    metrics: dict[str, object] = {}
 
     # ── Network-level scalars ────────────────────────────────────────────────
     metrics["density"] = nx.density(G_clean)
@@ -183,19 +183,16 @@ def compute_graph_metrics(G: nx.Graph) -> Dict[str, object]:
     # Average path length (largest connected component fallback)
     if n > 1 and G_clean.number_of_edges() > 0:
         if nx.is_connected(G_clean):
-            metrics["average_path_length"] = nx.average_shortest_path_length(
-                G_clean, weight=None
-            )
+            metrics["average_path_length"] = nx.average_shortest_path_length(G_clean, weight=None)
         else:
             lcc = _largest_cc(G_clean)
             if len(lcc) > 1:
-                metrics["average_path_length"] = nx.average_shortest_path_length(
-                    lcc, weight=None
-                )
+                metrics["average_path_length"] = nx.average_shortest_path_length(lcc, weight=None)
                 logger.warning(
                     "Graph is disconnected; average_path_length computed on "
                     "the largest connected component (%d / %d nodes).",
-                    len(lcc), n,
+                    len(lcc),
+                    n,
                 )
             else:
                 metrics["average_path_length"] = float("nan")
@@ -241,21 +238,15 @@ def compute_graph_metrics(G: nx.Graph) -> Dict[str, object]:
         for node in G_clean.nodes()
     }
 
-    metrics["betweenness_centrality"] = nx.betweenness_centrality(
-        G_clean, weight="weight"
-    )
+    metrics["betweenness_centrality"] = nx.betweenness_centrality(G_clean, weight="weight")
 
     try:
         metrics["eigenvector_centrality"] = nx.eigenvector_centrality(
             G_clean, weight="weight", max_iter=1000
         )
     except nx.PowerIterationFailedConvergence:
-        logger.warning(
-            "Eigenvector centrality did not converge; returning NaN for all nodes."
-        )
-        metrics["eigenvector_centrality"] = {
-            node: float("nan") for node in G_clean.nodes()
-        }
+        logger.warning("Eigenvector centrality did not converge; returning NaN for all nodes.")
+        metrics["eigenvector_centrality"] = {node: float("nan") for node in G_clean.nodes()}
 
     metrics["closeness_centrality"] = nx.closeness_centrality(G_clean)
 
@@ -266,7 +257,8 @@ def compute_graph_metrics(G: nx.Graph) -> Dict[str, object]:
 # Batch wrapper
 # ─────────────────────────────────────────────────────────────────────────────
 
-def compute_metrics_all(graphs: Dict) -> Dict[int, Dict[str, object]]:
+
+def compute_metrics_all(graphs: dict) -> dict[int, dict[str, object]]:
     """
     Compute graph-theoretic metrics for every graph in a dict of NetworkX graphs.
 
@@ -288,9 +280,10 @@ def compute_metrics_all(graphs: Dict) -> Dict[int, Dict[str, object]]:
 # Utility: build a NetworkX graph from a connectivity matrix
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def build_graph_from_matrix(
     connectivity_matrix: np.ndarray,
-    roi_labels: Optional[List[str]] = None,
+    roi_labels: list[str] | None = None,
     threshold: float = 0.0,
     directed: bool = False,
 ) -> nx.Graph:

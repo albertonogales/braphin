@@ -2,9 +2,6 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Union
-
-import numpy as np
 
 from .config import InputConfig
 from .exceptions import BRAPHINInputError
@@ -30,10 +27,11 @@ class BRAPHINInputBundle:
     auxiliary_files : dict
         Dictionary mapping filename to loaded content for each auxiliary file.
     """
-    fmri_path: Optional[str] = None
-    fmri_image: Optional[object] = None
-    fmri_metadata: Optional[Dict[str, object]] = None
-    auxiliary_files: Dict[str, object] = field(default_factory=dict)
+
+    fmri_path: str | None = None
+    fmri_image: object | None = None
+    fmri_metadata: dict[str, object] | None = None
+    auxiliary_files: dict[str, object] = field(default_factory=dict)
 
 
 class InputfMRIData:
@@ -48,9 +46,9 @@ class InputfMRIData:
 
     def __init__(
         self,
-        fmri_path: Union[str, Path],
-        auxiliary_paths: Optional[List[Union[str, Path]]] = None,
-        config: Optional[InputConfig] = None,
+        fmri_path: str | Path,
+        auxiliary_paths: list[str | Path] | None = None,
+        config: InputConfig | None = None,
     ):
         self.fmri_path = Path(fmri_path)
         self.auxiliary_paths = [Path(p) for p in auxiliary_paths] if auxiliary_paths else []
@@ -101,9 +99,7 @@ class InputfMRIData:
                     if "SliceTiming" in sidecar:
                         fmri_metadata["slice_timing_offsets"] = list(sidecar["SliceTiming"])
                 except (json.JSONDecodeError, OSError) as e:
-                    logger.warning(
-                        "Could not parse BIDS JSON sidecar %s: %s", aux_path, e
-                    )
+                    logger.warning("Could not parse BIDS JSON sidecar %s: %s", aux_path, e)
 
         bundle = BRAPHINInputBundle(
             fmri_path=str(self.fmri_path),
@@ -124,7 +120,11 @@ class InputfMRIData:
         # would give ['.2', '.nii', '.gz'] instead of ['.nii', '.gz']).
         name_lower = self.fmri_path.name.lower()
         suffix = next(
-            (ext for ext in self.config.allowed_fmri_extensions if name_lower.endswith(ext.lower())),
+            (
+                ext
+                for ext in self.config.allowed_fmri_extensions
+                if name_lower.endswith(ext.lower())
+            ),
             None,
         )
 
@@ -134,9 +134,9 @@ class InputfMRIData:
                 f"Supported extensions: {', '.join(self.config.allowed_fmri_extensions)}"
             )
 
-    def _load_auxiliary_files(self) -> Dict[str, object]:
+    def _load_auxiliary_files(self) -> dict[str, object]:
         """Load and return all auxiliary files."""
-        loaded_aux: Dict[str, object] = {}
+        loaded_aux: dict[str, object] = {}
 
         for aux_path in self.auxiliary_paths:
             if not aux_path.exists():
@@ -178,9 +178,7 @@ class InputfMRIData:
             if tr is not None:
                 logger.info("  TR (from header): %s s", tr)
             else:
-                logger.info(
-                    "  TR: not found in header — set via PreprocessConfig/DenoiseConfig"
-                )
+                logger.info("  TR: not found in header — set via PreprocessConfig/DenoiseConfig")
 
         if bundle.auxiliary_files:
             logger.info("  Auxiliary files detected:")

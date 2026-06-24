@@ -27,7 +27,6 @@ Biswal et al. (1995). Functional connectivity in the motor cortex of resting
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional, Tuple
 
 import numpy as np
 from scipy import signal
@@ -44,17 +43,18 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 
 #: Standard fMRI BOLD frequency bands.  Each value is ``(fmin_Hz, fmax_Hz)``.
-FMRI_BANDS: Dict[str, Tuple[float, float]] = {
-    "slow5":     (0.010, 0.027),   # infra-slow
-    "slow4":     (0.027, 0.073),   # canonical resting-state
-    "slow3":     (0.073, 0.167),   # near-Nyquist; requires TR ≤ 3 s
-    "broadband": (0.010, 0.100),   # Biswal 1995 standard
+FMRI_BANDS: dict[str, tuple[float, float]] = {
+    "slow5": (0.010, 0.027),  # infra-slow
+    "slow4": (0.027, 0.073),  # canonical resting-state
+    "slow3": (0.073, 0.167),  # near-Nyquist; requires TR ≤ 3 s
+    "broadband": (0.010, 0.100),  # Biswal 1995 standard
 }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Bandpass filtering
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def bandpass_roi_time_series(
     roi_time_series: np.ndarray,
@@ -101,8 +101,7 @@ def bandpass_roi_time_series(
 
     if fmin <= 0 or fmax <= fmin:
         raise ConnectivityError(
-            f"Invalid frequency range: fmin={fmin} Hz, fmax={fmax} Hz. "
-            "Require 0 < fmin < fmax."
+            f"Invalid frequency range: fmin={fmin} Hz, fmax={fmax} Hz. Require 0 < fmin < fmax."
         )
     if fmax >= nyquist:
         raise ConnectivityError(
@@ -127,6 +126,7 @@ def bandpass_roi_time_series(
 # Band-specific connectivity
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def compute_band_connectivity(
     roi_time_series: np.ndarray,
     tr: float,
@@ -134,8 +134,8 @@ def compute_band_connectivity(
     method: str = "pearson_correlation",
     model_order: int = 1,
     filter_order: int = 4,
-    fmin: Optional[float] = None,
-    fmax: Optional[float] = None,
+    fmin: float | None = None,
+    fmax: float | None = None,
 ) -> np.ndarray:
     """
     Compute a connectivity matrix within a specific fMRI frequency sub-band.
@@ -193,8 +193,8 @@ def compute_all_bands_connectivity(
     method: str = "pearson_correlation",
     model_order: int = 1,
     filter_order: int = 4,
-    bands: Optional[Dict[str, Tuple[float, float]]] = None,
-) -> Dict[str, np.ndarray]:
+    bands: dict[str, tuple[float, float]] | None = None,
+) -> dict[str, np.ndarray]:
     """
     Compute connectivity matrices for every fMRI frequency sub-band.
 
@@ -233,7 +233,7 @@ def compute_all_bands_connectivity(
     if bands is None:
         bands = FMRI_BANDS
 
-    results: Dict[str, np.ndarray] = {}
+    results: dict[str, np.ndarray] = {}
 
     for band_name, (fmin, fmax) in bands.items():
         try:
@@ -249,12 +249,18 @@ def compute_all_bands_connectivity(
             results[band_name] = mat
             logger.info(
                 "[BRAPHIN] Band connectivity: %s (%.3f–%.3f Hz) → shape %s",
-                band_name, fmin, fmax, mat.shape,
+                band_name,
+                fmin,
+                fmax,
+                mat.shape,
             )
         except ConnectivityError as exc:
             logger.warning(
                 "[BRAPHIN] Skipping band '%s' (%.3f–%.3f Hz): %s",
-                band_name, fmin, fmax, exc,
+                band_name,
+                fmin,
+                fmax,
+                exc,
             )
 
     return results

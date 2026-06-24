@@ -5,7 +5,6 @@ import tempfile
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -20,27 +19,27 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BRAPHINTransformBundle:
-    fmri_path: Optional[str] = None
-    original_metadata: Optional[Dict[str, object]] = None
-    preprocess_metadata: Optional[Dict[str, object]] = None
-    denoise_metadata: Optional[Dict[str, object]] = None
-    atlas_name: Optional[str] = None
-    atlas_source: Optional[str] = None
-    atlas_labels: Optional[np.ndarray] = None
-    roi_time_series: Optional[np.ndarray] = None
-    roi_labels: List[str] = field(default_factory=list)
+    fmri_path: str | None = None
+    original_metadata: dict[str, object] | None = None
+    preprocess_metadata: dict[str, object] | None = None
+    denoise_metadata: dict[str, object] | None = None
+    atlas_name: str | None = None
+    atlas_source: str | None = None
+    atlas_labels: np.ndarray | None = None
+    roi_time_series: np.ndarray | None = None
+    roi_labels: list[str] = field(default_factory=list)
 
-    centroid_coordinate_space: Optional[str] = None
+    centroid_coordinate_space: str | None = None
 
-    roi_centroids_3d: Dict[str, Tuple[float, float, float]] = field(default_factory=dict)
-    centroid_json_path: Optional[str] = None
+    roi_centroids_3d: dict[str, tuple[float, float, float]] = field(default_factory=dict)
+    centroid_json_path: str | None = None
 
     atlas_resampled: bool = False
     centroid_cache_used: bool = False
 
-    auxiliary_files: Dict[str, object] = field(default_factory=dict)
-    applied_steps: List[str] = field(default_factory=list)
-    transform_metadata: Dict[str, object] = field(default_factory=dict)
+    auxiliary_files: dict[str, object] = field(default_factory=dict)
+    applied_steps: list[str] = field(default_factory=list)
+    transform_metadata: dict[str, object] = field(default_factory=dict)
 
 
 class TransformBRAPHINData:
@@ -52,7 +51,12 @@ class TransformBRAPHINData:
     returns an ``BRAPHINTransformBundle``.
     """
 
-    def __init__(self, denoise_bundle: BRAPHINDenoiseBundle, atlas_data: Optional[object] = None, config: Optional[AtlasConfig] = None):
+    def __init__(
+        self,
+        denoise_bundle: BRAPHINDenoiseBundle,
+        atlas_data: object | None = None,
+        config: AtlasConfig | None = None,
+    ):
         self.denoise_bundle = denoise_bundle
         self.atlas_data = atlas_data
         self.config = config if config is not None else AtlasConfig()
@@ -89,7 +93,7 @@ class TransformBRAPHINData:
         # Issue #14 — warn when a named atlas was resampled to fMRI space:
         # canonical centroids are from the reference atlas space (typically MNI152),
         # not the subject's native space.
-        _centroid_space_warning: Optional[str] = None
+        _centroid_space_warning: str | None = None
         if atlas_resampled and self.config.atlas_name is not None:
             warnings.warn(
                 "Atlas was resampled to the fMRI voxel grid. The ROI centroid "
@@ -187,14 +191,10 @@ class TransformBRAPHINData:
             raise TransformationError("No valid BRAPHINDenoiseBundle was provided.")
 
         if self.denoise_bundle.denoised_data is None:
-            raise TransformationError(
-                "The denoise bundle does not contain 4-D denoised data."
-            )
+            raise TransformationError("The denoise bundle does not contain 4-D denoised data.")
 
         if not isinstance(self.denoise_bundle.denoised_data, np.ndarray):
-            raise TransformationError(
-                "The denoised data is not a NumPy ndarray."
-            )
+            raise TransformationError("The denoised data is not a NumPy ndarray.")
 
         if self.denoise_bundle.denoised_data.ndim != 4:
             raise TransformationError(
@@ -202,7 +202,9 @@ class TransformBRAPHINData:
                 f"{self.denoise_bundle.denoised_data.shape}."
             )
 
-    def _resolve_atlas(self, spatial_shape: Tuple[int, int, int], fmri_affine: np.ndarray) -> Tuple[str, np.ndarray, bool, Optional[np.ndarray]]:
+    def _resolve_atlas(
+        self, spatial_shape: tuple[int, int, int], fmri_affine: np.ndarray
+    ) -> tuple[str, np.ndarray, bool, np.ndarray | None]:
         """
         Determine which atlas to use and resample it to fMRI space if needed.
 
@@ -260,7 +262,9 @@ class TransformBRAPHINData:
 
         get_atlas_definition(self.config.atlas_name)
 
-    def _find_atlas_in_auxiliary_files(self, auxiliary_files: Dict[str, object]) -> Tuple[Optional[str], Optional[np.ndarray]]:
+    def _find_atlas_in_auxiliary_files(
+        self, auxiliary_files: dict[str, object]
+    ) -> tuple[str | None, np.ndarray | None]:
         """
         Search for a 3-D atlas array among the auxiliary files.
 
@@ -303,7 +307,9 @@ class TransformBRAPHINData:
         # Round to nearest integer because the atlas contains region labels.
         return np.rint(atlas_array).astype(np.int32)
 
-    def _validate_atlas_labels(self, atlas_labels: np.ndarray, spatial_shape: Tuple[int, int, int]) -> None:
+    def _validate_atlas_labels(
+        self, atlas_labels: np.ndarray, spatial_shape: tuple[int, int, int]
+    ) -> None:
         """Validate that the atlas spatial shape matches the fMRI volume."""
         if atlas_labels.shape != spatial_shape:
             raise AtlasError(
@@ -313,9 +319,7 @@ class TransformBRAPHINData:
 
         positive_labels = atlas_labels[atlas_labels > 0]
         if positive_labels.size == 0:
-            raise AtlasError(
-                "The atlas contains no valid ROI labels (all values are 0 or below)."
-            )
+            raise AtlasError("The atlas contains no valid ROI labels (all values are 0 or below).")
 
     def _get_valid_roi_ids(self, atlas_labels: np.ndarray) -> np.ndarray:
         """
@@ -327,13 +331,11 @@ class TransformBRAPHINData:
         roi_ids = roi_ids[roi_ids > 0]
 
         if roi_ids.size == 0:
-            raise TransformationError(
-                "No valid ROI labels found in the atlas (all values are 0)."
-            )
+            raise TransformationError("No valid ROI labels found in the atlas (all values are 0).")
 
         return roi_ids
 
-    def _build_roi_labels(self, roi_ids: np.ndarray) -> List[str]:
+    def _build_roi_labels(self, roi_ids: np.ndarray) -> list[str]:
         """
         Build human-readable labels for each ROI.
 
@@ -348,7 +350,7 @@ class TransformBRAPHINData:
                     "The number of roi_labels does not match the number of ROIs in the atlas."
                 )
             return list(self.config.roi_labels)
-        
+
         if self.config.atlas_name is not None:
             roi_name_map = get_atlas_roi_name_map(self.config.atlas_name)
             if roi_name_map is not None:
@@ -365,7 +367,7 @@ class TransformBRAPHINData:
         fmri_data: np.ndarray,
         atlas_labels: np.ndarray,
         roi_ids: np.ndarray,
-    ) -> Tuple[np.ndarray, Dict[int, int]]:
+    ) -> tuple[np.ndarray, dict[int, int]]:
         """
         Extract mean time series for each ROI.
 
@@ -378,17 +380,15 @@ class TransformBRAPHINData:
         roi_sizes : dict mapping ROI id → number of voxels
         """
         num_timepoints = fmri_data.shape[3]
-        roi_series_list: List[np.ndarray] = []
-        roi_sizes: Dict[int, int] = {}
+        roi_series_list: list[np.ndarray] = []
+        roi_sizes: dict[int, int] = {}
 
         for roi_id in roi_ids:
             roi_mask = atlas_labels == roi_id
             roi_voxels = fmri_data[roi_mask]
 
             if roi_voxels.size == 0:
-                raise TransformationError(
-                    f"ROI {int(roi_id)} contains no voxels."
-                )
+                raise TransformationError(f"ROI {int(roi_id)} contains no voxels.")
 
             # Indexing a 4-D volume with a 3-D boolean mask produces shape
             # (num_voxels_roi, T).
@@ -404,9 +404,22 @@ class TransformBRAPHINData:
         roi_time_series = np.vstack(roi_series_list).astype(np.float32)
         return roi_time_series, roi_sizes
 
-    def _build_transform_metadata(self, spatial_shape: Tuple[int, int, int], num_timepoints: int, atlas_labels: np.ndarray, roi_ids: np.ndarray, roi_sizes: Dict[int, int], atlas_source: str, atlas_name: Optional[str], atlas_resampled: bool, centroid_json_path: Optional[str], centroid_cache_used: bool, centroid_coordinate_space: str,) -> Dict[str, object]:
+    def _build_transform_metadata(
+        self,
+        spatial_shape: tuple[int, int, int],
+        num_timepoints: int,
+        atlas_labels: np.ndarray,
+        roi_ids: np.ndarray,
+        roi_sizes: dict[int, int],
+        atlas_source: str,
+        atlas_name: str | None,
+        atlas_resampled: bool,
+        centroid_json_path: str | None,
+        centroid_cache_used: bool,
+        centroid_coordinate_space: str,
+    ) -> dict[str, object]:
         """Build traceability metadata for the atlas parcellation stage."""
-        metadata: Dict[str, object] = {
+        metadata: dict[str, object] = {
             "fmri_spatial_shape": spatial_shape,
             "num_timepoints": int(num_timepoints),
             "atlas_shape": tuple(atlas_labels.shape),
@@ -422,7 +435,7 @@ class TransformBRAPHINData:
             "centroid_json_path": centroid_json_path,
             "centroid_cache_used": bool(centroid_cache_used),
             "fmri_affine_available": self.denoise_bundle.original_metadata is not None
-                and "affine" in self.denoise_bundle.original_metadata,
+            and "affine" in self.denoise_bundle.original_metadata,
         }
 
         if atlas_name is not None:
@@ -452,8 +465,12 @@ class TransformBRAPHINData:
             logger.info("  Atlas shape:      %s", bundle.transform_metadata.get("atlas_shape"))
             logger.info("  Number of ROIs:   %s", bundle.transform_metadata.get("num_rois"))
             logger.info("  Atlas resampled:  %s", bundle.transform_metadata.get("atlas_resampled"))
-            logger.info("  Centroid cache:   %s", bundle.transform_metadata.get("centroid_cache_used"))
-            logger.info("  Centroid JSON:    %s", bundle.transform_metadata.get("centroid_json_path"))
+            logger.info(
+                "  Centroid cache:   %s", bundle.transform_metadata.get("centroid_cache_used")
+            )
+            logger.info(
+                "  Centroid JSON:    %s", bundle.transform_metadata.get("centroid_json_path")
+            )
             logger.info(
                 "  ROI x time shape: %s",
                 bundle.transform_metadata.get("roi_time_series_shape"),
@@ -485,7 +502,9 @@ class TransformBRAPHINData:
     def _get_centroid_json_path(self, roi_ids: np.ndarray) -> Path:
         return self._get_centroid_layout_dir() / self._build_centroid_json_name(roi_ids)
 
-    def _resolve_or_build_canonical_roi_centroids(self, roi_ids: np.ndarray, roi_labels: List[str]) -> Tuple[Dict[str, Tuple[float, float, float]], Optional[str]]:
+    def _resolve_or_build_canonical_roi_centroids(
+        self, roi_ids: np.ndarray, roi_labels: list[str]
+    ) -> tuple[dict[str, tuple[float, float, float]], str | None]:
         """
         Return subject-independent canonical centroids for the named atlas.
 
@@ -494,9 +513,7 @@ class TransformBRAPHINData:
         Results are cached as JSON to avoid repeated computation.
         """
         if self.config.atlas_name is None:
-            raise TransformationError(
-                "Cannot build canonical centroids when atlas_name is None."
-            )
+            raise TransformationError("Cannot build canonical centroids when atlas_name is None.")
 
         json_path = self._get_centroid_json_path(roi_ids)
 
@@ -519,9 +536,7 @@ class TransformBRAPHINData:
 
         atlas_ref_labels = self._coerce_atlas_to_array(atlas_ref)
         atlas_ref_affine = (
-            np.asarray(atlas_ref.affine, dtype=float)
-            if hasattr(atlas_ref, "affine")
-            else None
+            np.asarray(atlas_ref.affine, dtype=float) if hasattr(atlas_ref, "affine") else None
         )
 
         centroids = self._compute_roi_centroids(
@@ -543,16 +558,22 @@ class TransformBRAPHINData:
 
         return centroids, str(json_path)
 
-    def _compute_roi_centroids(self, atlas_labels: np.ndarray, roi_ids: np.ndarray, roi_labels: List[str], atlas_affine: Optional[np.ndarray] = None) -> Dict[str, Tuple[float, float, float]]:
+    def _compute_roi_centroids(
+        self,
+        atlas_labels: np.ndarray,
+        roi_ids: np.ndarray,
+        roi_labels: list[str],
+        atlas_affine: np.ndarray | None = None,
+    ) -> dict[str, tuple[float, float, float]]:
         """
         Compute the centroid of each ROI.
 
         Returns world-space coordinates when an affine matrix is available;
         falls back to voxel-space coordinates otherwise.
         """
-        centroids: Dict[str, Tuple[float, float, float]] = {}
+        centroids: dict[str, tuple[float, float, float]] = {}
 
-        for roi_id, roi_label in zip(roi_ids, roi_labels):
+        for roi_id, roi_label in zip(roi_ids, roi_labels, strict=True):
             coords = np.argwhere(atlas_labels == roi_id)
             if coords.size == 0:
                 raise TransformationError(
@@ -576,7 +597,16 @@ class TransformBRAPHINData:
 
         return centroids
 
-    def _save_roi_centroids_to_json(self, json_path: Path, roi_ids: np.ndarray, roi_labels: List[str], centroids: Dict[str, Tuple[float, float, float]], atlas_shape: Tuple[int, int, int], atlas_name: Optional[str], coordinate_space: str) -> None:
+    def _save_roi_centroids_to_json(
+        self,
+        json_path: Path,
+        roi_ids: np.ndarray,
+        roi_labels: list[str],
+        centroids: dict[str, tuple[float, float, float]],
+        atlas_shape: tuple[int, int, int],
+        atlas_name: str | None,
+        coordinate_space: str,
+    ) -> None:
         payload = {
             "atlas_name": atlas_name,
             "atlas_shape": list(atlas_shape),
@@ -587,7 +617,7 @@ class TransformBRAPHINData:
                     "roi_label": roi_label,
                     "centroid": list(centroids[roi_label]),
                 }
-                for roi_id, roi_label in zip(roi_ids, roi_labels)
+                for roi_id, roi_label in zip(roi_ids, roi_labels, strict=True)
             ],
         }
 
@@ -599,7 +629,7 @@ class TransformBRAPHINData:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2, ensure_ascii=False)
-            os.replace(tmp, json_path)   # atomic on POSIX / Windows
+            os.replace(tmp, json_path)  # atomic on POSIX / Windows
         except Exception:
             try:
                 os.unlink(tmp)
@@ -607,7 +637,12 @@ class TransformBRAPHINData:
                 pass
             raise
 
-    def _load_roi_centroids_from_json(self, json_path: Path, expected_roi_labels: Optional[List[str]] = None, expected_coordinate_space: Optional[str] = None) -> Dict[str, Tuple[float, float, float]]:
+    def _load_roi_centroids_from_json(
+        self,
+        json_path: Path,
+        expected_roi_labels: list[str] | None = None,
+        expected_coordinate_space: str | None = None,
+    ) -> dict[str, tuple[float, float, float]]:
         with json_path.open("r", encoding="utf-8") as f:
             payload = json.load(f)
 
@@ -624,7 +659,7 @@ class TransformBRAPHINData:
         if expected_roi_labels is not None and payload_labels != list(expected_roi_labels):
             return {}
 
-        centroids: Dict[str, Tuple[float, float, float]] = {}
+        centroids: dict[str, tuple[float, float, float]] = {}
         for roi in rois:
             label = roi["roi_label"]
             centroid = roi["centroid"]
@@ -641,9 +676,7 @@ class TransformBRAPHINData:
         metadata = self.denoise_bundle.original_metadata
 
         if metadata is None or "affine" not in metadata:
-            raise TransformationError(
-                "fMRI affine matrix not found in the original metadata."
-            )
+            raise TransformationError("fMRI affine matrix not found in the original metadata.")
 
         affine = np.asarray(metadata["affine"])
 
@@ -654,7 +687,13 @@ class TransformBRAPHINData:
 
         return affine
 
-    def _atlas_matches_fmri_space(self, atlas_img, spatial_shape: Tuple[int, int, int], fmri_affine: np.ndarray, atol: float = 1e-5) -> bool:
+    def _atlas_matches_fmri_space(
+        self,
+        atlas_img,
+        spatial_shape: tuple[int, int, int],
+        fmri_affine: np.ndarray,
+        atol: float = 1e-5,
+    ) -> bool:
         """Return True if the atlas and fMRI already share the same voxel grid."""
         if tuple(atlas_img.shape) != tuple(spatial_shape):
             return False
@@ -662,7 +701,9 @@ class TransformBRAPHINData:
         atlas_affine = np.asarray(atlas_img.affine)
         return np.allclose(atlas_affine, fmri_affine, atol=atol)
 
-    def _resample_atlas_to_fmri_space(self, atlas_img, spatial_shape: Tuple[int, int, int], fmri_affine: np.ndarray):
+    def _resample_atlas_to_fmri_space(
+        self, atlas_img, spatial_shape: tuple[int, int, int], fmri_affine: np.ndarray
+    ):
         """Resample the atlas to the fMRI voxel grid using nearest-neighbour interpolation."""
         try:
             from nibabel.processing import resample_from_to
@@ -676,13 +717,17 @@ class TransformBRAPHINData:
         try:
             resampled_img = resample_from_to(atlas_img, target, order=0)
         except Exception as exc:
-            raise TransformationError(
-                "Failed to resample the atlas to fMRI space."
-            ) from exc
+            raise TransformationError("Failed to resample the atlas to fMRI space.") from exc
 
         return resampled_img
 
-    def _prepare_atlas_for_fmri_space(self, atlas_data: object, spatial_shape: Tuple[int, int, int], fmri_affine: np.ndarray, atlas_source: str) -> Tuple[str, np.ndarray, bool, Optional[np.ndarray]]:
+    def _prepare_atlas_for_fmri_space(
+        self,
+        atlas_data: object,
+        spatial_shape: tuple[int, int, int],
+        fmri_affine: np.ndarray,
+        atlas_source: str,
+    ) -> tuple[str, np.ndarray, bool, np.ndarray | None]:
         """
         Ensure the atlas is aligned to the fMRI voxel grid.
 
@@ -721,7 +766,7 @@ class TransformBRAPHINData:
         atlas_labels = self._coerce_atlas_to_array(atlas_data)
         self._validate_atlas_labels(atlas_labels, spatial_shape)
         return atlas_source, atlas_labels, False, None
-    
+
     def _load_atlas_from_config_if_available(self):
         """
         Load the atlas from the configuration when ``atlas_name`` or
@@ -745,7 +790,8 @@ class TransformBRAPHINData:
         )
         return load_nifti_file(resolved_path)
 
-def build_synthetic_atlas(spatial_shape: Tuple[int, int, int], num_rois: int = 8) -> np.ndarray:
+
+def build_synthetic_atlas(spatial_shape: tuple[int, int, int], num_rois: int = 8) -> np.ndarray:
     """
     Build a simple synthetic atlas for testing.
 
@@ -765,18 +811,14 @@ def build_synthetic_atlas(spatial_shape: Tuple[int, int, int], num_rois: int = 8
     ndarray of shape ``spatial_shape`` with integer ROI labels.
     """
     if len(spatial_shape) != 3:
-        raise AtlasError(
-            f"spatial_shape must have 3 dimensions, but received {spatial_shape}."
-        )
+        raise AtlasError(f"spatial_shape must have 3 dimensions, but received {spatial_shape}.")
 
     if num_rois < 1:
         raise AtlasError("num_rois must be at least 1.")
 
     num_voxels = int(np.prod(spatial_shape))
     if num_rois > num_voxels:
-        raise AtlasError(
-            "num_rois cannot exceed the total number of voxels in the volume."
-        )
+        raise AtlasError("num_rois cannot exceed the total number of voxels in the volume.")
 
     labels_flat = np.zeros(num_voxels, dtype=np.int32)
     voxel_indices = np.arange(num_voxels)

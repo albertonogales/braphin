@@ -11,12 +11,11 @@ extraction — it only loads and validates NIfTI images.
 """
 
 from pathlib import Path
-from typing import Dict, Union
 
 from ..exceptions import BRAPHINFormatError, BRAPHINInputError
 
 
-def load_nifti_file(file_path: Union[str, Path]):
+def load_nifti_file(file_path: str | Path):
     """
     Load a NIfTI file using nibabel.
 
@@ -52,21 +51,17 @@ def load_nifti_file(file_path: Union[str, Path]):
     # failures on filenames with extra dots (e.g. sub-01.2_bold.nii.gz).
     name_lower = file_path.name.lower()
     if not (name_lower.endswith(".nii") or name_lower.endswith(".nii.gz")):
-        raise BRAPHINInputError(
-            f"Unsupported extension for NIfTI file: {file_path.name}"
-        )
+        raise BRAPHINInputError(f"Unsupported extension for NIfTI file: {file_path.name}")
 
     try:
         image = nib.load(str(file_path))
     except Exception as exc:
-        raise BRAPHINFormatError(
-            f"Failed to load NIfTI file: {file_path}"
-        ) from exc
+        raise BRAPHINFormatError(f"Failed to load NIfTI file: {file_path}") from exc
 
     return image
 
 
-def get_nifti_metadata(image) -> Dict[str, object]:
+def get_nifti_metadata(image) -> dict[str, object]:
     """
     Extract basic metadata from a loaded NIfTI image.
 
@@ -110,6 +105,5 @@ def validate_fmri_nifti(image) -> None:
 
     if metadata["ndim"] != 4:
         raise BRAPHINFormatError(
-            f"Expected a 4-D fMRI volume, but received an image with "
-            f"shape {metadata['shape']}."
+            f"Expected a 4-D fMRI volume, but received an image with shape {metadata['shape']}."
         )

@@ -16,7 +16,6 @@ import numpy as np
 
 
 class ModelMRIData:
-
     """
     fMRI model class that integrates all pipeline stages without modifying
     EEGraph's original ``ModelData`` class.
@@ -91,9 +90,7 @@ class ModelMRIData:
         Verify that the received object looks like a valid BRAPHINInputBundle.
         """
         if self.data is None:
-            raise ValueError(
-                "ModelMRIData received no input data."
-            )
+            raise ValueError("ModelMRIData received no input data.")
 
         if not hasattr(self.data, "fmri_image"):
             raise ValueError(
@@ -113,6 +110,7 @@ class ModelMRIData:
         coverage of all supported method names and aliases.
         """
         from braphin.tools import CONNECTIVITY_ALIASES
+
         if connectivity is None:
             return "pearson_correlation"
         normalized = str(connectivity).strip().lower()
@@ -135,7 +133,7 @@ class ModelMRIData:
 
         return config
 
-    def connectivity_workflow(self, bands=[None], window_size=None, threshold=None):
+    def connectivity_workflow(self, bands=None, window_size=None, threshold=None):
         """
         Execute the full MRI workflow.
 
@@ -145,12 +143,14 @@ class ModelMRIData:
           will also be computed and stored in self.band_connectivity.
         - Returns (G, connectivity_matrix), as expected by graph.py.
         """
+        if bands is None:
+            bands = [None]
         self._validate_input_bundle()
 
-        from braphin.preprocess import PreprocessBRAPHINData
-        from braphin.denoise import DenoiseBRAPHINData
-        from braphin.transform import TransformBRAPHINData
         from braphin.connectivity import ModelBRAPHINConnectivityData
+        from braphin.denoise import DenoiseBRAPHINData
+        from braphin.preprocess import PreprocessBRAPHINData
+        from braphin.transform import TransformBRAPHINData
 
         self.input_bundle = self.data
 
@@ -208,25 +208,23 @@ class ModelMRIData:
         roi_centroids_3d = getattr(self.transform_bundle, "roi_centroids_3d", None)
 
         centroid_coordinate_space = getattr(
-            self.transform_bundle,
-            "centroid_coordinate_space",
-            None
+            self.transform_bundle, "centroid_coordinate_space", None
         )
 
         if centroid_coordinate_space is None:
             centroid_coordinate_space = self.transform_bundle.transform_metadata.get(
-                "centroid_coordinate_space",
-                "world"
+                "centroid_coordinate_space", "world"
             )
 
         # Band-filtered connectivity (optional)
         from braphin.bands import FMRI_BANDS, compute_band_connectivity
+
         if bands is not None and bands != [None]:
             # bands can be a list like ["slow4"] or ["slow3", "broadband"]
             band_results = {}
-            tr = getattr(self.transform_bundle, 'tr', None)
+            tr = getattr(self.transform_bundle, "tr", None)
             if tr is None:
-                tr = self.transform_bundle.transform_metadata.get('tr', 2.0)
+                tr = self.transform_bundle.transform_metadata.get("tr", 2.0)
             for band_name in bands:
                 if band_name in FMRI_BANDS:
                     band_results[band_name] = compute_band_connectivity(
@@ -240,6 +238,7 @@ class ModelMRIData:
                 self.band_connectivity = band_results
 
         from braphin.visualize import build_fmri_graph
+
         G = build_fmri_graph(
             connectivity_matrix=connectivity_matrix,
             roi_labels=roi_labels,
@@ -259,8 +258,7 @@ class ModelMRIData:
 
         if bundle is None:
             raise ValueError(
-                "No BRAPHINConnectivityBundle is available. "
-                "Call connectivity_workflow() first."
+                "No BRAPHINConnectivityBundle is available. Call connectivity_workflow() first."
             )
 
         print("\n[BRAPHIN] fMRI connectivity computed")
@@ -271,14 +269,8 @@ class ModelMRIData:
             f"Connectivity matrix shape: "
             f"{bundle.connectivity_metadata.get('connectivity_matrix_shape')}"
         )
-        print(
-            f"Symmetric matrix: "
-            f"{bundle.connectivity_metadata.get('matrix_is_symmetric')}"
-        )
-        print(
-            f"Diagonal all ones: "
-            f"{bundle.connectivity_metadata.get('diagonal_all_ones')}"
-        )
+        print(f"Symmetric matrix: {bundle.connectivity_metadata.get('matrix_is_symmetric')}")
+        print(f"Diagonal all ones: {bundle.connectivity_metadata.get('diagonal_all_ones')}")
         print(
             f"Mean connectivity (off-diagonal): "
             f"{bundle.connectivity_metadata.get('mean_connectivity')}"

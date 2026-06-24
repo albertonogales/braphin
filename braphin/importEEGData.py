@@ -4,11 +4,11 @@ Stage 1 of the BRAPHIN EEG pipeline: EEG data loading.
 Wraps EEGraph's InputData (MNE-Python) and exposes a bundle interface
 consistent with InputfMRIData / BRAPHINInputBundle.
 """
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +31,12 @@ class EEGInputBundle:
     auxiliary_files : dict
         Reserved for auxiliary files (currently unused for EEG).
     """
-    eeg_path: Optional[str] = None
-    raw_data: Optional[object] = None
-    eeg_metadata: Optional[Dict[str, object]] = None
-    ch_names: List[str] = field(default_factory=list)
-    auxiliary_files: Dict[str, object] = field(default_factory=dict)
+
+    eeg_path: str | None = None
+    raw_data: object | None = None
+    eeg_metadata: dict[str, object] | None = None
+    ch_names: list[str] = field(default_factory=list)
+    auxiliary_files: dict[str, object] = field(default_factory=dict)
 
 
 class InputEEGData:
@@ -61,8 +62,8 @@ class InputEEGData:
     def __init__(
         self,
         eeg_path: str,
-        exclude: Optional[List] = None,
-        electrode_montage_path: Optional[str] = None,
+        exclude: list | None = None,
+        electrode_montage_path: str | None = None,
     ):
         self.eeg_path = str(eeg_path)
         self.exclude = exclude if exclude is not None else [None]

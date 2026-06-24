@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from .exceptions import AtlasError
 
@@ -23,6 +22,7 @@ class AtlasDefinition:
     description : str
         Brief human-readable description.
     """
+
     name: str
     family: str
     num_rois: int
@@ -31,7 +31,7 @@ class AtlasDefinition:
 
 
 # Registry of supported atlases. Additional atlases can be appended here.
-SUPPORTED_ATLASES: Dict[str, AtlasDefinition] = {
+SUPPORTED_ATLASES: dict[str, AtlasDefinition] = {
     "aal": AtlasDefinition(
         name="aal",
         family="AAL",
@@ -63,7 +63,7 @@ SUPPORTED_ATLASES: Dict[str, AtlasDefinition] = {
 }
 
 # Optional ROI-ID → anatomical name maps.
-ATLAS_ROI_NAME_MAPS: Dict[str, Dict[int, str]] = {
+ATLAS_ROI_NAME_MAPS: dict[str, dict[int, str]] = {
     # Keys are the coded integer labels stored in the AAL NIfTI file (2001, 2002, …, 9170).
     # These are hierarchical codes, not sequential indices.  Sorted ascending they map
     # position-by-position onto the 116 standard AAL anatomical names.
@@ -187,7 +187,7 @@ ATLAS_ROI_NAME_MAPS: Dict[str, Dict[int, str]] = {
     }
 }
 
-DEFAULT_ATLAS_FILENAMES: Dict[str, str] = {
+DEFAULT_ATLAS_FILENAMES: dict[str, str] = {
     "aal": "aal.nii.gz",
     "schaefer_100": "schaefer_100.nii.gz",
     "schaefer_200": "schaefer_200.nii.gz",
@@ -207,16 +207,14 @@ def get_default_atlas_path(atlas_name: str) -> Path:
     atlas_name = atlas_name.lower()
 
     if atlas_name not in DEFAULT_ATLAS_FILENAMES:
-        raise AtlasError(
-            f"No default filename defined for atlas '{atlas_name}'."
-        )
+        raise AtlasError(f"No default filename defined for atlas '{atlas_name}'.")
 
     return get_default_atlas_dir() / DEFAULT_ATLAS_FILENAMES[atlas_name]
 
 
 def resolve_supported_atlas_path(
     atlas_name: str,
-    atlas_path: Optional[str] = None,
+    atlas_path: str | None = None,
 ) -> Path:
     """
     Resolve the file path of a supported atlas.
@@ -231,9 +229,7 @@ def resolve_supported_atlas_path(
     if atlas_path is not None:
         candidate = Path(atlas_path)
         if not candidate.exists():
-            raise AtlasError(
-                f"atlas_path for '{atlas_name}' does not exist: {candidate}"
-            )
+            raise AtlasError(f"atlas_path for '{atlas_name}' does not exist: {candidate}")
         return candidate
 
     default_path = get_default_atlas_path(atlas_name)
@@ -247,7 +243,7 @@ def resolve_supported_atlas_path(
     )
 
 
-def list_supported_atlases() -> List[str]:
+def list_supported_atlases() -> list[str]:
     """Return the list of supported atlas names."""
     return list(SUPPORTED_ATLASES.keys())
 
@@ -274,7 +270,7 @@ def is_supported_atlas(atlas_name: str) -> bool:
     return atlas_name.lower() in SUPPORTED_ATLASES
 
 
-def get_atlas_roi_name_map(atlas_name: str) -> Optional[Dict[int, str]]:
+def get_atlas_roi_name_map(atlas_name: str) -> dict[int, str] | None:
     """Return the ROI-ID → anatomical name map for the atlas, or None."""
     return ATLAS_ROI_NAME_MAPS.get(atlas_name.lower())
 
