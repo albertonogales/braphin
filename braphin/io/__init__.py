@@ -1,8 +1,8 @@
 """
-Submódulo IO de BRAPHIN.
+BRAPHIN IO sub-module.
 
-Qué hace esta carpeta:
-- agrupa la lógica de lectura de archivos,
-- separa la lectura de NIfTI de la lectura tabular,
-- evita mezclar carga de datos con procesamiento posterior.
+Responsibilities:
+- groups file-reading logic,
+- separates NIfTI loading from tabular data loading,
+- avoids mixing data loading with downstream processing.
 """

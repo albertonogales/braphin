@@ -14,7 +14,7 @@
     <div class="sidebar-logo-icon">🧠</div>
     <div class="sidebar-logo-text">
       <span class="name">BRAPHIN</span>
-      <span class="version">v1.0.0</span>
+      <span class="version">v1.1.0</span>
     </div>
   </a>
 
@@ -32,6 +32,10 @@
       <a href="#config">Configuration</a>
       <a href="#bundles">Bundles</a>
       <a href="#pipeline">Pipeline classes</a>
+      <a href="#graph">BRAPHINGraph</a>
+      <a href="#orchestrator">ModelMRIData</a>
+      <a href="#visualize">Visualisation</a>
+      <a href="#bands">Frequency bands</a>
       <a href="#atlas">Atlas helpers</a>
       <a href="#strategy">Strategy pattern</a>
       <a href="#tools">Connectivity tools</a>
@@ -64,6 +68,10 @@
       <li><a href="#config">Configuration dataclasses</a></li>
       <li><a href="#bundles">Bundle dataclasses</a></li>
       <li><a href="#pipeline">Pipeline classes</a></li>
+      <li><a href="#graph">BRAPHINGraph (Graph)</a></li>
+      <li><a href="#orchestrator">ModelMRIData</a></li>
+      <li><a href="#visualize">Visualisation</a></li>
+      <li><a href="#bands">Frequency bands</a></li>
       <li><a href="#atlas">Atlas registry &amp; helpers</a></li>
       <li><a href="#strategy">Strategy pattern</a></li>
       <li><a href="#tools">Connectivity tools</a></li>
@@ -103,19 +111,20 @@
       <code>PreprocessConfig</code>
     </div>
     <div class="api-class-body">
-      <p>Controls the preprocessing stage. All six steps are fully implemented and execute in order: NaN cleaning → slice timing → motion correction → outlier detection → normalisation → smoothing.</p>
+      <p>Controls the preprocessing stage. All six steps are fully implemented and execute in order: NaN cleaning → slice timing → motion correction → outlier detection → per-voxel z-score normalisation → smoothing.</p>
       <table class="param-table">
         <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><code>apply_motion_correction</code></td><td><code>bool</code></td><td><code>False</code></td><td>✅ Rigid-body realignment to volume 0 (Powell optimisation)</td></tr>
           <tr><td><code>apply_slice_timing</code></td><td><code>bool</code></td><td><code>False</code></td><td>✅ Linear interpolation per-slice to reference time. Requires <code>tr</code>.</td></tr>
           <tr><td><code>apply_outlier_detection</code></td><td><code>bool</code></td><td><code>False</code></td><td>✅ DVARS-threshold outlier detection + scrubbing</td></tr>
-          <tr><td><code>apply_normalization</code></td><td><code>bool</code></td><td><code>True</code></td><td>✅ Per-voxel temporal z-score normalisation (mean and std computed along the time axis)</td></tr>
+          <tr><td><code>apply_voxel_zscore</code></td><td><code>bool</code></td><td><code>True</code></td><td>✅ Per-voxel temporal z-score normalisation (mean and std computed along the time axis)</td></tr>
           <tr><td><code>apply_smoothing</code></td><td><code>bool</code></td><td><code>False</code></td><td>✅ Isotropic Gaussian spatial smoothing</td></tr>
           <tr><td><code>smoothing_fwhm</code></td><td><code>float</code></td><td><code>6.0</code></td><td>Full-width at half maximum of the Gaussian kernel, in mm</td></tr>
           <tr><td><code>tr</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Repetition time in seconds. Required when <code>apply_slice_timing=True</code></td></tr>
           <tr><td><code>slice_order</code></td><td><code>str</code></td><td><code>"sequential"</code></td><td>Slice acquisition order: <code>"sequential"</code> or <code>"interleaved"</code></td></tr>
           <tr><td><code>slice_timing_ref_slice</code></td><td><code>int</code></td><td><code>0</code></td><td>Reference slice index for STC (0 = first, -1 = middle)</td></tr>
+          <tr><td><code>slice_axis</code></td><td><code>int</code></td><td><code>2</code></td><td>Spatial axis corresponding to the slice dimension: 0 = X (sagittal), 1 = Y (coronal), 2 = Z (axial). Change for non-axial acquisitions. Must be 0, 1, or 2.</td></tr>
           <tr><td><code>outlier_threshold_dvars</code></td><td><code>float</code></td><td><code>1.5</code></td><td>IQR multiplier for DVARS outlier threshold</td></tr>
           <tr><td><code>scrubbing_strategy</code></td><td><code>str</code></td><td><code>"interpolate"</code></td><td><code>"interpolate"</code>: replace outliers with neighbour interpolation; <code>"mark"</code>: flag only</td></tr>
         </tbody>
@@ -130,7 +139,7 @@
       <code>DenoiseConfig</code>
     </div>
     <div class="api-class-body">
-      <p>Controls the denoising stage. All three steps are fully implemented.</p>
+      <p>Controls the denoising stage. All three steps are fully implemented. When both <code>regress_confounds=True</code> and <code>apply_bandpass=True</code>, confounds are bandpass-filtered with the same filter before OLS regression (Lindquist et al. 2019 order: scrubbing → bandpass → regression).</p>
       <table class="param-table">
         <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
@@ -152,7 +161,7 @@
       <code>AtlasConfig</code>
     </div>
     <div class="api-class-body">
-      <p>Selects which atlas to use in <code>TransformMRIData</code>. Exactly one of <code>atlas_name</code> or <code>atlas_path</code> should be set (or neither when passing <code>atlas_data</code> directly to the constructor).</p>
+      <p>Selects which atlas to use in <code>TransformBRAPHINData</code>. Exactly one of <code>atlas_name</code> or <code>atlas_path</code> should be set (or neither when passing <code>atlas_data</code> directly to the constructor).</p>
       <table class="param-table">
         <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
@@ -175,7 +184,7 @@
       <table class="param-table">
         <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>method</code></td><td><code>str</code></td><td><code>"pearson_correlation"</code></td><td>Connectivity measure. One of <code>"pearson_correlation"</code>, <code>"cross_correlation"</code>, <code>"corr_cross_correlation"</code></td></tr>
+          <tr><td><code>method</code></td><td><code>str</code></td><td><code>"pearson_correlation"</code></td><td>Connectivity measure key. See <a href="#tools">Connectivity tools</a> for all 15 supported methods.</td></tr>
           <tr><td><code>window_size</code></td><td><code>float | None</code></td><td><code>None</code></td><td><code>None</code> = static connectivity. A positive float (seconds) requests windowed dynamic connectivity (planned; flagged as pending step).</td></tr>
           <tr><td><code>threshold</code></td><td><code>float | None</code></td><td><code>None</code></td><td>If set, edges with <code>|weight| &lt; threshold</code> are removed from the graph</td></tr>
         </tbody>
@@ -210,34 +219,34 @@
   <h2 id="bundles">Bundle Dataclasses</h2>
   <p>Each pipeline stage returns a bundle — a typed dataclass that carries data, metadata, and provenance information to the next stage. All bundles are frozen-safe: they can be serialised (e.g. pickled) for checkpointing.</p>
 
-  <!-- MRIInputBundle -->
+  <!-- BRAPHINInputBundle -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind dataclass">dataclass</span>
-      <code>MRIInputBundle</code>
+      <code>BRAPHINInputBundle</code>
     </div>
     <div class="api-class-body">
-      <p>Output of <code>InputMRIData.load()</code>.</p>
+      <p>Output of <code>InputfMRIData.load()</code>.</p>
       <table class="param-table">
         <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><code>fmri_path</code></td><td><code>str | None</code></td><td>Absolute path to the source NIfTI file</td></tr>
           <tr><td><code>fmri_image</code></td><td><code>nibabel.Nifti1Image | None</code></td><td>Loaded NIfTI image object</td></tr>
-          <tr><td><code>fmri_metadata</code></td><td><code>dict | None</code></td><td>Keys: <code>shape</code>, <code>ndim</code>, <code>affine</code>, <code>header</code></td></tr>
+          <tr><td><code>fmri_metadata</code></td><td><code>dict | None</code></td><td>Keys: <code>shape</code>, <code>ndim</code>, <code>affine</code>, <code>header</code>, <code>tr</code> (auto-extracted from <code>pixdim[4]</code>; BIDS sidecar <code>"RepetitionTime"</code> takes precedence), <code>slice_timing_offsets</code> (from BIDS sidecar <code>"SliceTiming"</code>, if present)</td></tr>
           <tr><td><code>auxiliary_files</code></td><td><code>dict[str, ndarray]</code></td><td>Filename → loaded array for each auxiliary file</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <!-- MRIPreprocessBundle -->
+  <!-- BRAPHINPreprocessBundle -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind dataclass">dataclass</span>
-      <code>MRIPreprocessBundle</code>
+      <code>BRAPHINPreprocessBundle</code>
     </div>
     <div class="api-class-body">
-      <p>Output of <code>PreprocessMRIData.run()</code>.</p>
+      <p>Output of <code>PreprocessBRAPHINData.run()</code>.</p>
       <table class="param-table">
         <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
         <tbody>
@@ -256,14 +265,14 @@
     </div>
   </div>
 
-  <!-- MRIDenoiseBundle -->
+  <!-- BRAPHINDenoiseBundle -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind dataclass">dataclass</span>
-      <code>MRIDenoiseBundle</code>
+      <code>BRAPHINDenoiseBundle</code>
     </div>
     <div class="api-class-body">
-      <p>Output of <code>DenoiseMRIData.run()</code>. Has the same shape fields as <code>MRIPreprocessBundle</code> plus denoising-specific metadata.</p>
+      <p>Output of <code>DenoiseBRAPHINData.run()</code>. Has the same shape fields as <code>BRAPHINPreprocessBundle</code> plus denoising-specific metadata.</p>
       <table class="param-table">
         <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
         <tbody>
@@ -276,14 +285,14 @@
     </div>
   </div>
 
-  <!-- MRITransformBundle -->
+  <!-- BRAPHINTransformBundle -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind dataclass">dataclass</span>
-      <code>MRITransformBundle</code>
+      <code>BRAPHINTransformBundle</code>
     </div>
     <div class="api-class-body">
-      <p>Output of <code>TransformMRIData.run()</code>.</p>
+      <p>Output of <code>TransformBRAPHINData.run()</code>.</p>
       <table class="param-table">
         <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
         <tbody>
@@ -300,14 +309,14 @@
     </div>
   </div>
 
-  <!-- MRIConnectivityBundle -->
+  <!-- BRAPHINConnectivityBundle -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind dataclass">dataclass</span>
-      <code>MRIConnectivityBundle</code>
+      <code>BRAPHINConnectivityBundle</code>
     </div>
     <div class="api-class-body">
-      <p>Output of <code>ModelMRIConnectivityData.run()</code>.</p>
+      <p>Output of <code>ModelBRAPHINConnectivityData.run()</code>.</p>
       <table class="param-table">
         <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
         <tbody>
@@ -327,17 +336,17 @@
        ══════════════════════════════════════════════════════════════ -->
   <h2 id="pipeline">Pipeline Classes</h2>
 
-  <!-- InputMRIData -->
+  <!-- InputfMRIData -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind">class</span>
-      <code>InputMRIData</code>
+      <code>InputfMRIData</code>
     </div>
     <div class="api-class-body">
       <p>Stage 1 — validates and loads a NIfTI fMRI file and optional auxiliary files.</p>
       <div class="api-method">
         <div class="api-sig">
-          <span class="cls">InputMRIData</span>(<span class="kw">fmri_path</span>: <span class="tp">str | Path</span>, <span class="kw">auxiliary_paths</span>: <span class="tp">list | None</span> = <span class="lit">None</span>, <span class="kw">config</span>: <span class="tp">InputConfig | None</span> = <span class="lit">None</span>)
+          <span class="cls">InputfMRIData</span>(<span class="kw">fmri_path</span>: <span class="tp">str | Path</span>, <span class="kw">auxiliary_paths</span>: <span class="tp">list | None</span> = <span class="lit">None</span>, <span class="kw">config</span>: <span class="tp">InputConfig | None</span> = <span class="lit">None</span>)
         </div>
         <table class="param-table">
           <thead><tr><th>Parameter</th><th>Description</th></tr></thead>
@@ -349,101 +358,245 @@
         </table>
       </div>
       <div class="api-method">
-        <div class="api-sig"><span class="fn">load</span>() → <span class="tp">MRIInputBundle</span></div>
-        <p>Executes validation and loading. Raises <code>MRIInputError</code> for missing files or bad extensions; <code>MRIFormatError</code> if the NIfTI is not 4-D.</p>
+        <div class="api-sig"><span class="fn">load</span>() → <span class="tp">BRAPHINInputBundle</span></div>
+        <p>Executes validation and loading. Raises <code>BRAPHINInputError</code> for missing files or bad extensions; <code>BRAPHINFormatError</code> if the NIfTI is not 4-D.</p>
       </div>
       <div class="api-method">
-        <div class="api-sig"><span class="fn">display_info</span>(<span class="kw">bundle</span>: <span class="tp">MRIInputBundle</span>) → <span class="tp">None</span></div>
-        <p>Prints a human-readable summary of the loaded bundle to stdout.</p>
+        <div class="api-sig"><span class="fn">display_info</span>(<span class="kw">bundle</span>: <span class="tp">BRAPHINInputBundle</span>) → <span class="tp">None</span></div>
+        <p>Prints a human-readable summary of the loaded bundle to stdout. Output is prefixed with <code>[BRAPHIN]</code>.</p>
       </div>
     </div>
   </div>
 
-  <!-- PreprocessMRIData -->
+  <!-- PreprocessBRAPHINData -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind">class</span>
-      <code>PreprocessMRIData</code>
+      <code>PreprocessBRAPHINData</code>
     </div>
     <div class="api-class-body">
       <p>Stage 2 — NaN/inf cleaning and optional preprocessing steps including slice-timing correction, motion correction, outlier detection, per-voxel temporal z-score normalisation, and spatial smoothing.</p>
       <div class="api-method">
         <div class="api-sig">
-          <span class="cls">PreprocessMRIData</span>(<span class="kw">input_bundle</span>: <span class="tp">MRIInputBundle</span>, <span class="kw">config</span>: <span class="tp">PreprocessConfig | None</span> = <span class="lit">None</span>)
+          <span class="cls">PreprocessBRAPHINData</span>(<span class="kw">input_bundle</span>: <span class="tp">BRAPHINInputBundle</span>, <span class="kw">config</span>: <span class="tp">PreprocessConfig | None</span> = <span class="lit">None</span>)
         </div>
       </div>
       <div class="api-method">
-        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">MRIPreprocessBundle</span></div>
+        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">BRAPHINPreprocessBundle</span></div>
         <p>Executes preprocessing. Raises <code>PreprocessingError</code> if the bundle is invalid or if normalisation fails (zero-variance signal).</p>
       </div>
     </div>
   </div>
 
-  <!-- DenoiseMRIData -->
+  <!-- get_motion_confounds -->
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>get_motion_confounds(preprocess_bundle)</code>
+    </div>
+    <div class="api-class-body">
+      <h3 id="get-motion-confounds"><code>get_motion_confounds(preprocess_bundle)</code></h3>
+      <p>Return motion parameters suitable for confound regression (negated). See preprocess section.</p>
+      <p><strong>Returns</strong>: <code>ndarray (T, 6)</code> — negated world-space motion parameters.</p>
+      <p>The stored <code>motion_params</code> represent the forward rigid-body transform mapping the moving volume to the reference. Confound regression requires the negated (inverse) parameters. Raises <code>PreprocessingError</code> if motion correction was not applied.</p>
+    </div>
+  </div>
+
+  <!-- DenoiseBRAPHINData -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind">class</span>
-      <code>DenoiseMRIData</code>
+      <code>DenoiseBRAPHINData</code>
     </div>
     <div class="api-class-body">
-      <p>Stage 3 — least-squares confound regression.</p>
+      <p>Stage 3 — least-squares confound regression, optional scrubbing, and optional bandpass filtering.</p>
       <div class="api-method">
         <div class="api-sig">
-          <span class="cls">DenoiseMRIData</span>(<span class="kw">preprocess_bundle</span>: <span class="tp">MRIPreprocessBundle</span>, <span class="kw">config</span>: <span class="tp">DenoiseConfig | None</span> = <span class="lit">None</span>)
+          <span class="cls">DenoiseBRAPHINData</span>(<span class="kw">preprocess_bundle</span>: <span class="tp">BRAPHINPreprocessBundle</span>, <span class="kw">config</span>: <span class="tp">DenoiseConfig | None</span> = <span class="lit">None</span>)
         </div>
       </div>
       <div class="api-method">
-        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">MRIDenoiseBundle</span></div>
+        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">BRAPHINDenoiseBundle</span></div>
         <p>Scans auxiliary files for a compatible confound matrix (rows = time points) and regresses it out. Incompatible files are skipped. Raises <code>DenoisingError</code> if <code>regress_confounds=True</code> but no compatible file is found.</p>
       </div>
     </div>
   </div>
 
-  <!-- TransformMRIData -->
+  <!-- TransformBRAPHINData -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind">class</span>
-      <code>TransformMRIData</code>
+      <code>TransformBRAPHINData</code>
     </div>
     <div class="api-class-body">
       <p>Stage 4 — atlas parcellation, automatic resampling, ROI mean time-series extraction and centroid computation.</p>
       <div class="api-method">
         <div class="api-sig">
-          <span class="cls">TransformMRIData</span>(<span class="kw">denoise_bundle</span>: <span class="tp">MRIDenoiseBundle</span>, <span class="kw">config</span>: <span class="tp">AtlasConfig | None</span> = <span class="lit">None</span>, <span class="kw">atlas_data</span>: <span class="tp">ndarray | Nifti1Image | None</span> = <span class="lit">None</span>)
+          <span class="cls">TransformBRAPHINData</span>(<span class="kw">denoise_bundle</span>: <span class="tp">BRAPHINDenoiseBundle</span>, <span class="kw">config</span>: <span class="tp">AtlasConfig | None</span> = <span class="lit">None</span>, <span class="kw">atlas_data</span>: <span class="tp">ndarray | Nifti1Image | None</span> = <span class="lit">None</span>)
         </div>
         <table class="param-table">
           <thead><tr><th>Parameter</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>denoise_bundle</code></td><td>Output of <code>DenoiseMRIData.run()</code></td></tr>
+            <tr><td><code>denoise_bundle</code></td><td>Output of <code>DenoiseBRAPHINData.run()</code></td></tr>
             <tr><td><code>config</code></td><td>Atlas selection. Use <code>AtlasConfig(atlas_name="aal")</code> for bundled atlases</td></tr>
             <tr><td><code>atlas_data</code></td><td>Alternative to <code>config.atlas_path</code>: pass a NumPy array or NIfTI image directly. When set, <code>config.atlas_name</code> should be <code>None</code></td></tr>
           </tbody>
         </table>
       </div>
       <div class="api-method">
-        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">MRITransformBundle</span></div>
+        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">BRAPHINTransformBundle</span></div>
         <p>Resamples the atlas to fMRI space if needed, extracts ROI mean time series, computes centroids, and writes a centroid JSON cache for bundled atlases. Raises <code>AtlasError</code> or <code>TransformationError</code> on failure.</p>
       </div>
     </div>
   </div>
 
-  <!-- ModelMRIConnectivityData -->
+  <!-- ModelBRAPHINConnectivityData -->
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind">class</span>
-      <code>ModelMRIConnectivityData</code>
+      <code>ModelBRAPHINConnectivityData</code>
     </div>
     <div class="api-class-body">
       <p>Stage 5 — computes the connectivity matrix and builds a NetworkX graph.</p>
       <div class="api-method">
         <div class="api-sig">
-          <span class="cls">ModelMRIConnectivityData</span>(<span class="kw">transform_bundle</span>: <span class="tp">MRITransformBundle</span>, <span class="kw">config</span>: <span class="tp">ConnectivityConfig | None</span> = <span class="lit">None</span>)
+          <span class="cls">ModelBRAPHINConnectivityData</span>(<span class="kw">transform_bundle</span>: <span class="tp">BRAPHINTransformBundle</span>, <span class="kw">config</span>: <span class="tp">ConnectivityConfig | None</span> = <span class="lit">None</span>)
         </div>
       </div>
       <div class="api-method">
-        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">MRIConnectivityBundle</span></div>
+        <div class="api-sig"><span class="fn">run</span>() → <span class="tp">BRAPHINConnectivityBundle</span></div>
         <p>Computes the N×N connectivity matrix using the configured method, optionally applies the absolute threshold, and builds a NetworkX graph with node positions and edge weights. Raises <code>ConnectivityError</code> for unsupported methods or matrix failures.</p>
       </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       BRAPHINGraph
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="graph">BRAPHINGraph (exported as <code>Graph</code>)</h2>
+  <p>Available as <code>from braphin import Graph</code> or <code>from braphin import BRAPHINGraph</code>. Subclasses <code>eegraph.graph.Graph</code>. The dependency is strictly one-way: <code>braphin</code> imports from <code>eegraph</code>; <code>eegraph</code> has zero imports from <code>braphin</code>.</p>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind">class</span>
+      <code>BRAPHINGraph</code>
+    </div>
+    <div class="api-class-body">
+      <p>Unified entry point for both fMRI and EEG connectivity analyses.</p>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">load_data</span>(<span class="kw">path</span>: <span class="tp">str</span>, <span class="kw">modality</span>: <span class="tp">str</span> = <span class="lit">"fmri"</span>, <span class="kw">auxiliary_paths</span>: <span class="tp">list | None</span> = <span class="lit">None</span>) → <span class="tp">None</span></div>
+        <p>Loads data for the specified modality. <code>modality="fmri"</code> routes to the BRAPHIN pipeline; <code>modality="eeg"</code> routes to the EEGraph pipeline.</p>
+      </div>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">modelate</span>(<span class="kw">window_size</span>: <span class="tp">float | None</span>, <span class="kw">connectivity</span>: <span class="tp">str</span>, <span class="kw">threshold</span>: <span class="tp">float | None</span> = <span class="lit">None</span>, <span class="kw">atlas_config</span>: <span class="tp">AtlasConfig | None</span> = <span class="lit">None</span>, <span class="kw">**kwargs</span>) → <span class="tp">tuple[networkx.Graph, ndarray]</span></div>
+        <p>Runs the full connectivity pipeline for the loaded modality and returns <code>(networkx_graph, connectivity_matrix)</code>. For fMRI, <code>atlas_config</code> selects the parcellation atlas; for EEG, <code>window_size</code> controls windowing.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ModelMRIData
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="orchestrator">ModelMRIData</h2>
+  <p>Available from <code>braphin</code>. High-level orchestrator that runs the full fMRI pipeline in one call.</p>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind">class</span>
+      <code>ModelMRIData</code>
+    </div>
+    <div class="api-class-body">
+      <p>Wraps all five pipeline stages (Input → Preprocess → Denoise → Transform → Connectivity) behind a single method.</p>
+      <div class="api-method">
+        <div class="api-sig">
+          <span class="cls">ModelMRIData</span>(<span class="kw">fmri_path</span>: <span class="tp">str</span>, <span class="kw">auxiliary_paths</span>: <span class="tp">list | None</span> = <span class="lit">None</span>, <span class="kw">config</span>: <span class="tp">BRAPHINConfig | None</span> = <span class="lit">None</span>)
+        </div>
+      </div>
+      <div class="api-method">
+        <div class="api-sig"><span class="fn">connectivity_workflow</span>() → <span class="tp">BRAPHINConnectivityBundle</span></div>
+        <p>Executes the full pipeline from NIfTI file to connectivity bundle. Uses the configs provided at construction time. Returns the final <code>BRAPHINConnectivityBundle</code>.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       VISUALISATION
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="visualize">Visualisation</h2>
+  <p>Available from <code>braphin.visualize</code> and re-exported from the top-level package.</p>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>build_fmri_graph(connectivity_matrix, roi_labels, roi_centroids_3d, centroid_coordinate_space, projection) → matplotlib.figure.Figure</code>
+    </div>
+    <div class="api-class-body">
+      <p>Renders the functional connectivity graph projected onto a 2-D brain plane.</p>
+      <table class="param-table">
+        <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>connectivity_matrix</code></td><td><code>ndarray (N, N)</code></td><td>ROI × ROI connectivity matrix (e.g. from <code>BRAPHINConnectivityBundle.connectivity_matrix</code>)</td></tr>
+          <tr><td><code>roi_labels</code></td><td><code>list[str]</code></td><td>Label for each ROI node</td></tr>
+          <tr><td><code>roi_centroids_3d</code></td><td><code>ndarray (N, 3)</code></td><td>3-D centroid coordinates</td></tr>
+          <tr><td><code>centroid_coordinate_space</code></td><td><code>str</code></td><td><code>"world"</code> or <code>"voxel"</code></td></tr>
+          <tr><td><code>projection</code></td><td><code>str</code></td><td>Projection plane: <code>"axial"</code>, <code>"coronal"</code>, or <code>"sagittal"</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       FREQUENCY BANDS
+       ══════════════════════════════════════════════════════════════ -->
+  <h2 id="bands">Frequency Bands (<code>braphin.bands</code>)</h2>
+  <p>Available from <code>braphin.bands</code> and re-exported from the top-level package. These are BOLD fMRI oscillation bands; they are <em>not</em> EEG bands.</p>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind">constant</span>
+      <code>FMRI_BANDS: dict[str, tuple[float, float]]</code>
+    </div>
+    <div class="api-class-body">
+      <p>Predefined BOLD fMRI frequency bands based on Zuo et al. (2010):</p>
+      <table class="param-table">
+        <thead><tr><th>Key</th><th>Range (Hz)</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>slow5</code></td><td>0.010 – 0.027</td><td>Slow-5 BOLD band</td></tr>
+          <tr><td><code>slow4</code></td><td>0.027 – 0.073</td><td>Slow-4 BOLD band</td></tr>
+          <tr><td><code>slow3</code></td><td>0.073 – 0.167</td><td>Slow-3 BOLD band</td></tr>
+          <tr><td><code>broadband</code></td><td>0.010 – 0.100</td><td>Broadband resting-state band</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>bandpass_roi_time_series(roi_time_series, tr, low, high) → ndarray</code>
+    </div>
+    <div class="api-class-body">
+      <p>Applies a zero-phase Butterworth bandpass filter to an (N_rois, T) ROI time-series matrix. Returns the filtered matrix with the same shape.</p>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>compute_band_connectivity(roi_time_series, tr, band_name, method) → ndarray</code>
+    </div>
+    <div class="api-class-body">
+      <p>Bandpass-filters the ROI time series to the named BOLD band, then computes connectivity using the specified method. <code>band_name</code> must be a key of <code>FMRI_BANDS</code>. Returns an (N, N) connectivity matrix.</p>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>compute_all_bands_connectivity(roi_time_series, tr, method) → dict[str, ndarray]</code>
+    </div>
+    <div class="api-class-body">
+      <p>Runs <code>compute_band_connectivity</code> for all four BOLD bands and returns a dict mapping band name to connectivity matrix.</p>
     </div>
   </div>
 
@@ -537,7 +690,7 @@
        TOOLS
        ══════════════════════════════════════════════════════════════ -->
   <h2 id="tools">Connectivity Tools</h2>
-  <p>Available from <code>braphin.tools</code>.</p>
+  <p>Available from <code>braphin.tools</code>. The 15 supported fMRI connectivity methods are listed below.</p>
 
   <div class="api-class">
     <div class="api-class-header">
@@ -545,7 +698,27 @@
       <code>list_connectivity_measures() → list[str]</code>
     </div>
     <div class="api-class-body">
-      <p>Returns <code>["pearson_correlation", "cross_correlation", "corr_cross_correlation"]</code>.</p>
+      <p>Returns the list of all 15 supported fMRI connectivity method keys.</p>
+      <table class="param-table">
+        <thead><tr><th>Method key</th><th>Description</th><th>Symmetric</th><th>TR required</th></tr></thead>
+        <tbody>
+          <tr><td><code>pearson_correlation</code></td><td>Pearson r between ROI time series</td><td>Yes</td><td>No</td></tr>
+          <tr><td><code>partial_correlation</code></td><td>Partial correlation via precision matrix</td><td>Yes</td><td>No</td></tr>
+          <tr><td><code>cross_correlation</code></td><td>Normalised cross-correlation (lag 0 – 10%)</td><td>No</td><td>No</td></tr>
+          <tr><td><code>corr_cross_correlation</code></td><td>Corrected cross-correlation (antisymmetric)</td><td>No</td><td>No</td></tr>
+          <tr><td><code>coherence</code></td><td>Magnitude-squared coherence (averaged)</td><td>Yes</td><td>Yes</td></tr>
+          <tr><td><code>imag_coherence</code></td><td>Signed imaginary coherence (Nolte 2004) — antisymmetric: IC(i,j) = −IC(j,i)</td><td>No (antisymmetric)</td><td>Yes</td></tr>
+          <tr><td><code>lagged_coherence</code></td><td>Lagged coherence (Pascual-Marqui)</td><td>Yes</td><td>Yes</td></tr>
+          <tr><td><code>aec</code></td><td>Amplitude Envelope Correlation (Hilbert)</td><td>Yes</td><td>No</td></tr>
+          <tr><td><code>aec_orth</code></td><td>Orthogonalized AEC (Hipp et al. 2012)</td><td>Yes</td><td>No</td></tr>
+          <tr><td><code>mutual_information</code></td><td>Mutual Information via joint histogram</td><td>Yes</td><td>No</td></tr>
+          <tr><td><code>sync_likelihood</code></td><td>Synchronisation Likelihood (Stam &amp; van Dijk 2002)</td><td>Yes</td><td>No</td></tr>
+          <tr><td><code>granger_causality</code></td><td>Bivariate linear Granger Causality</td><td>No (directed)</td><td>No</td></tr>
+          <tr><td><code>transfer_entropy</code></td><td>Transfer Entropy via histogram</td><td>No (directed)</td><td>No</td></tr>
+          <tr><td><code>pdc</code></td><td>Partial Directed Coherence (Baccalá &amp; Sameshima 2001)</td><td>No (directed)</td><td>Yes</td></tr>
+          <tr><td><code>psi</code></td><td>Phase Slope Index (Nolte et al. 2008)</td><td>No (directed)</td><td>Yes</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -566,6 +739,17 @@
     </div>
     <div class="api-class-body">
       <p>Computes the N×N Pearson correlation matrix from an (N, T) ROI time-series array using <code>numpy.corrcoef</code>. Diagonal is 1.0; off-diagonal values are in [−1, 1].</p>
+    </div>
+  </div>
+
+  <div class="api-class">
+    <div class="api-class-header">
+      <span class="api-kind function">function</span>
+      <code>compute_partial_correlation(roi_time_series: ndarray) → ndarray</code>
+    </div>
+    <div class="api-class-body">
+      <p>Computes the N×N partial correlation matrix via the precision matrix (inverse of the covariance matrix). Diagonal is 1.0; values are clamped to [−1, 1].</p>
+      <p><strong>Note:</strong> Raises <code>ConnectivityError</code> if the number of ROIs is greater than or equal to the number of timepoints (rank-deficient covariance matrix). Consider using Pearson correlation or reducing the number of ROIs in that case.</p>
     </div>
   </div>
 
@@ -596,15 +780,15 @@
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind exception">exception</span>
-      <code>MRIInputError(BRAPHINError)</code>
+      <code>BRAPHINInputError(BRAPHINError)</code>
     </div>
-    <div class="api-class-body"><p>Raised by <code>InputMRIData</code>. File not found, unsupported extension, missing auxiliary file.</p></div>
+    <div class="api-class-body"><p>Raised by <code>InputfMRIData</code>. File not found, unsupported extension, missing auxiliary file.</p></div>
   </div>
 
   <div class="api-class">
     <div class="api-class-header">
       <span class="api-kind exception">exception</span>
-      <code>MRIFormatError(BRAPHINError)</code>
+      <code>BRAPHINFormatError(BRAPHINError)</code>
     </div>
     <div class="api-class-body"><p>Raised when the NIfTI file has unexpected dimensionality (not 4-D) or internal format issues.</p></div>
   </div>

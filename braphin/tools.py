@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+import warnings
 import numpy as np
 from scipy import signal, stats
 from scipy.spatial.distance import cdist
@@ -14,13 +15,8 @@ CONNECTIVITY_MEASURES: Dict[str, str] = {
     "cross_correlation":     "Cross-correlation",
     "corr_cross_correlation": "Corrected cross-correlation",
     "partial_correlation":   "Partial correlation",
-    "plv":                   "Phase Locking Value",
-    "pli":                   "Phase Lag Index",
-    "wpli":                  "Weighted Phase Lag Index",
     "aec":                   "Amplitude Envelope Correlation",
     "aec_orth":              "Orthogonalized Amplitude Envelope Correlation",
-    "dwpli":                 "Debiased Weighted Phase Lag Index",
-    "ppc":                   "Pairwise Phase Consistency",
     "mutual_information":    "Mutual Information",
     "sync_likelihood":       "Synchronisation Likelihood",
     # ── Undirected, TR required ──────────────────────────────────────────────
@@ -40,7 +36,8 @@ SPECTRAL_MEASURES = {"coherence", "imag_coherence", "lagged_coherence", "pdc", "
 
 # Measures that produce an asymmetric (directed) matrix.
 DIRECTED_MEASURES = {"granger_causality", "transfer_entropy", "pdc", "psi",
-                     "cross_correlation", "corr_cross_correlation"}
+                     "cross_correlation", "corr_cross_correlation",
+                     "imag_coherence"}
 
 # Allowed aliases. A dictionary to parse the different names that a user may provide.
 CONNECTIVITY_ALIASES: Dict[str, str] = {
@@ -61,18 +58,6 @@ CONNECTIVITY_ALIASES: Dict[str, str] = {
     "partial correlation": "partial_correlation",
     "partial corr": "partial_correlation",
 
-    "plv": "plv",
-    "phase locking value": "plv",
-    "phase_locking_value": "plv",
-
-    "pli": "pli",
-    "phase lag index": "pli",
-    "phase_lag_index": "pli",
-
-    "wpli": "wpli",
-    "weighted_phase_lag_index": "wpli",
-    "weighted phase lag index": "wpli",
-
     "coherence": "coherence",
     "squared_coherence": "coherence",
     "squared coherence": "coherence",
@@ -92,14 +77,6 @@ CONNECTIVITY_ALIASES: Dict[str, str] = {
     "aec_c": "aec_orth",
     "orthogonalized_aec": "aec_orth",
     "orthogonalized aec": "aec_orth",
-
-    "dwpli": "dwpli",
-    "debiased_wpli": "dwpli",
-    "debiased wpli": "dwpli",
-
-    "ppc": "ppc",
-    "pairwise_phase_consistency": "ppc",
-    "pairwise phase consistency": "ppc",
 
     "mutual_information": "mutual_information",
     "mutual information": "mutual_information",
@@ -207,7 +184,6 @@ def compute_pearson_correlation(roi_time_series: np.ndarray) -> np.ndarray:
     # Replace NaN/inf values: a zero-variance ROI produces NaN correlations.
     # Off-diagonal NaNs are set to 0; the diagonal is restored to 1 below.
     if np.any(np.isnan(connectivity_matrix)):
-        import warnings
         warnings.warn(
             "One or more ROI time series had zero variance; "
             "NaN correlations replaced with 0 (off-diagonal) and 1 (diagonal).",
@@ -436,18 +412,30 @@ def compute_partial_correlation(roi_time_series: np.ndarray) -> np.ndarray:
 
     The diagonal is set to 1. Values are clamped to [-1, 1].
 
-    Raises ConnectivityError if the covariance matrix is singular.
+    Raises ConnectivityError if the covariance matrix is singular or if the
+    number of ROIs is greater than or equal to the number of timepoints (which
+    makes the sample covariance matrix rank-deficient).
     """
     validate_roi_time_series(roi_time_series)
+
+    n_rois, n_timepoints = roi_time_series.shape
+    if n_rois >= n_timepoints:
+        raise ConnectivityError(
+            f"Partial correlation requires more timepoints than ROIs "
+            f"(got {n_rois} ROIs and {n_timepoints} timepoints). "
+            "Consider using Pearson correlation, or reduce the number of ROIs, "
+            "or use a regularised estimator."
+        )
 
     cov = np.cov(roi_time_series.astype(np.float64))
 
     try:
         precision = np.linalg.inv(cov)
-    except np.linalg.LinAlgError as exc:
+    except np.linalg.LinAlgError as e:
         raise ConnectivityError(
-            "Covariance matrix is singular; cannot compute partial correlation."
-        ) from exc
+            f"Covariance matrix is singular and cannot be inverted: {e}. "
+            "Consider using a regularised estimator."
+        ) from e
 
     diag = np.sqrt(np.diag(precision))
     with np.errstate(invalid="ignore", divide="ignore"):
@@ -458,97 +446,6 @@ def compute_partial_correlation(roi_time_series: np.ndarray) -> np.ndarray:
     partial_corr = np.clip(partial_corr, -1.0, 1.0)
 
     return partial_corr.astype(np.float32)
-
-
-# ============================================================
-# Phase-based measures (no TR required)
-# ============================================================
-
-def _instantaneous_phases(roi_time_series: np.ndarray) -> np.ndarray:
-    """Return instantaneous phases (radians) via Hilbert transform for every ROI."""
-    analytic = signal.hilbert(roi_time_series.astype(np.float64), axis=1)
-    return np.angle(analytic)
-
-
-def compute_plv(roi_time_series: np.ndarray) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using Phase Locking Value (PLV).
-
-    PLV[i, j] = |mean_t( exp(j * (phase_i(t) - phase_j(t))) )|
-
-    The matrix is symmetric with 1 on the diagonal.
-    """
-    validate_roi_time_series(roi_time_series)
-
-    phases = _instantaneous_phases(roi_time_series)
-    num_rois = roi_time_series.shape[0]
-    connectivity_matrix = np.zeros((num_rois, num_rois), dtype=np.float32)
-
-    for i in range(num_rois):
-        for j in range(i, num_rois):
-            phase_diff = phases[i] - phases[j]
-            plv = float(np.abs(np.mean(np.exp(1j * phase_diff))))
-            connectivity_matrix[i, j] = plv
-            connectivity_matrix[j, i] = plv
-
-    np.fill_diagonal(connectivity_matrix, 1.0)
-    return connectivity_matrix
-
-
-def compute_pli(roi_time_series: np.ndarray) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using Phase Lag Index (PLI).
-
-    PLI[i, j] = |mean_t( sign(phase_i(t) - phase_j(t)) )|
-
-    The matrix is symmetric. The diagonal is 0 (a signal has no phase lag with itself).
-    """
-    validate_roi_time_series(roi_time_series)
-
-    phases = _instantaneous_phases(roi_time_series)
-    num_rois = roi_time_series.shape[0]
-    connectivity_matrix = np.zeros((num_rois, num_rois), dtype=np.float32)
-
-    for i in range(num_rois):
-        for j in range(i + 1, num_rois):
-            phase_diff = phases[i] - phases[j]
-            phase_diff = (phase_diff + np.pi) % (2 * np.pi) - np.pi
-            pli = float(np.abs(np.mean(np.sign(phase_diff))))
-            connectivity_matrix[i, j] = pli
-            connectivity_matrix[j, i] = pli
-
-    return connectivity_matrix
-
-
-def compute_wpli(roi_time_series: np.ndarray) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using Weighted Phase Lag Index (wPLI).
-
-    wPLI[i, j] = |mean( |imag(C_xy)| * sign(imag(C_xy)) )| / mean( |imag(C_xy)| )
-
-    where C_xy is the element-wise cross-spectrum from the analytic signal.
-
-    The matrix is symmetric. The diagonal is 0.
-    """
-    validate_roi_time_series(roi_time_series)
-
-    analytic = signal.hilbert(roi_time_series.astype(np.float64), axis=1)
-    num_rois = roi_time_series.shape[0]
-    connectivity_matrix = np.zeros((num_rois, num_rois), dtype=np.float32)
-
-    for i in range(num_rois):
-        for j in range(i + 1, num_rois):
-            cross_spectrum = analytic[i] * np.conj(analytic[j])
-            imag_cs = np.imag(cross_spectrum)
-            denom = float(np.mean(np.abs(imag_cs)))
-            if denom == 0.0:
-                wpli = 0.0
-            else:
-                wpli = float(np.abs(np.mean(np.abs(imag_cs) * np.sign(imag_cs))) / denom)
-            connectivity_matrix[i, j] = wpli
-            connectivity_matrix[j, i] = wpli
-
-    return connectivity_matrix
 
 
 # ============================================================
@@ -593,15 +490,19 @@ def compute_coherence(roi_time_series: np.ndarray, tr: float) -> np.ndarray:
 
 def compute_imaginary_coherence(roi_time_series: np.ndarray, tr: float) -> np.ndarray:
     """
-    Compute the ROI × ROI connectivity matrix using mean absolute imaginary coherence.
+    Compute the ROI × ROI connectivity matrix using signed imaginary coherence
+    (Nolte et al. 2004).
 
-    Imaginary coherence is the imaginary part of the cross-spectral density
-    normalised by the geometric mean of the auto-spectra:
+    Signed imaginary coherence is the imaginary part of the complex coherency,
+    keeping the sign:
 
-        ImCoh[i, j] = mean_f( |imag(P_xy(f))| / sqrt(P_xx(f) * P_yy(f)) )
+        IC[i, j] = mean_f( Im(P_xy(f)) / sqrt(P_xx(f) * P_yy(f)) )
 
     Because it is insensitive to zero-lag correlations it is robust to common
     sources of spurious connectivity (e.g. motion artefacts).
+
+    The matrix is **antisymmetric**: IC(i, j) = −IC(j, i). The diagonal is 0.
+    Positive values indicate that ROI i leads ROI j in phase.
 
     Parameters
     ----------
@@ -621,16 +522,18 @@ def compute_imaginary_coherence(roi_time_series: np.ndarray, tr: float) -> np.nd
     connectivity_matrix = np.zeros((num_rois, num_rois), dtype=np.float32)
 
     for i in range(num_rois):
-        for j in range(i, num_rois):
+        for j in range(i + 1, num_rois):
             _, Pxx = signal.welch(roi_time_series[i], fs=fs)
             _, Pyy = signal.welch(roi_time_series[j], fs=fs)
             _, Pxy = signal.csd(roi_time_series[i], roi_time_series[j], fs=fs)
             with np.errstate(invalid="ignore", divide="ignore"):
-                icoh = np.abs(np.imag(Pxy)) / np.sqrt(Pxx * Pyy)
+                # Signed imaginary coherence: Im(Pxy) / sqrt(Pxx * Pyy)
+                # Result is antisymmetric: IC(x,y) = -IC(y,x)
+                icoh = np.imag(Pxy) / np.sqrt(Pxx * Pyy + 1e-15)
             icoh = np.nan_to_num(icoh, nan=0.0, posinf=0.0, neginf=0.0)
-            val = float(np.mean(icoh))
-            connectivity_matrix[i, j] = val
-            connectivity_matrix[j, i] = val
+            ic_value = float(np.mean(icoh))
+            connectivity_matrix[i, j] = ic_value
+            connectivity_matrix[j, i] = -ic_value
 
     np.fill_diagonal(connectivity_matrix, 0.0)
     return connectivity_matrix.astype(np.float32)
@@ -704,93 +607,6 @@ def compute_aec_orth(roi_time_series: np.ndarray) -> np.ndarray:
 
 
 # ============================================================
-# dWPLI — Debiased Weighted Phase Lag Index
-# ============================================================
-
-def _dwpli_from_cross_spectrum(imag_cs: np.ndarray) -> float:
-    """
-    Compute the debiased WPLI scalar from a vector of imaginary cross-spectrum
-    values (Vinck et al. 2011, NeuroImage).
-
-    dWPLI = (E[Im C]² − E[Im C²] / n) / (E[|Im C|]² − E[Im C²] / n)
-    """
-    n = len(imag_cs)
-    if n < 2:
-        return 0.0
-    mean_imag = float(np.mean(imag_cs))
-    mean_sq_imag = float(np.mean(imag_cs ** 2))
-    mean_abs_imag = float(np.mean(np.abs(imag_cs)))
-
-    numer = mean_imag ** 2 - mean_sq_imag / n
-    denom = mean_abs_imag ** 2 - mean_sq_imag / n
-    if abs(denom) < 1e-15:
-        return 0.0
-    return float(numer / denom)
-
-
-def compute_dwpli(roi_time_series: np.ndarray) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using the Debiased Weighted Phase
-    Lag Index (dWPLI; Vinck et al. 2011).
-
-    Unlike WPLI, dWPLI removes the positive bias that arises from finite sample
-    sizes, making it a more statistically robust estimator of phase synchrony.
-
-    The matrix is symmetric. The diagonal is 0 (no self-coupling).
-    """
-    validate_roi_time_series(roi_time_series)
-
-    analytic = signal.hilbert(roi_time_series.astype(np.float64), axis=1)
-    num_rois = roi_time_series.shape[0]
-    conn = np.zeros((num_rois, num_rois), dtype=np.float32)
-
-    for i in range(num_rois):
-        for j in range(i + 1, num_rois):
-            cross_spectrum = analytic[i] * np.conj(analytic[j])
-            imag_cs = np.imag(cross_spectrum)
-            val = _dwpli_from_cross_spectrum(imag_cs)
-            conn[i, j] = val
-            conn[j, i] = val
-
-    return conn
-
-
-# ============================================================
-# PPC — Pairwise Phase Consistency
-# ============================================================
-
-def compute_ppc(roi_time_series: np.ndarray) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using Pairwise Phase Consistency
-    (PPC; Vinck et al. 2010).
-
-    PPC is an unbiased estimator of squared PLV that removes the positive bias
-    of PLV at finite sample sizes:
-
-        PPC = (T · PLV² − 1) / (T − 1)
-
-    Values are clipped to [0, 1]. The matrix is symmetric with 1 on the diagonal.
-    """
-    validate_roi_time_series(roi_time_series)
-
-    phases = _instantaneous_phases(roi_time_series)
-    num_rois, T = roi_time_series.shape
-    conn = np.zeros((num_rois, num_rois), dtype=np.float32)
-
-    for i in range(num_rois):
-        for j in range(i, num_rois):
-            phase_diff = phases[i] - phases[j]
-            plv2 = float(np.abs(np.mean(np.exp(1j * phase_diff))) ** 2)
-            ppc = (T * plv2 - 1.0) / (T - 1.0)
-            val = float(np.clip(ppc, 0.0, 1.0))
-            conn[i, j] = val
-            conn[j, i] = val
-
-    np.fill_diagonal(conn, 1.0)
-    return conn
-
-
-# ============================================================
 # Mutual Information
 # ============================================================
 
@@ -823,6 +639,17 @@ def compute_mutual_information(
     The matrix is symmetric. The diagonal contains MI(x, x) = H(x) (entropy).
     """
     validate_roi_time_series(roi_time_series)
+
+    n_samples = roi_time_series.shape[1]
+    if n_samples < n_bins ** 2 * 5:
+        warnings.warn(
+            f"Mutual information estimated with {n_bins} bins and only {n_samples} "
+            "timepoints. The histogram estimator is highly biased for short series "
+            f"(recommended minimum: {n_bins**2 * 5} timepoints). "
+            "Consider using fewer bins or applying Miller-Madow bias correction.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     num_rois = roi_time_series.shape[0]
     conn = np.zeros((num_rois, num_rois), dtype=np.float32)
@@ -1029,10 +856,26 @@ def compute_granger_causality(
     ----------
     model_order : int
         Order of the AR / ARX models (number of past lags). Default 1.
+
+    Warning
+    -------
+    This implementation uses **bivariate (pairwise) Granger causality**, which does
+    not condition on third-variable influences. For network-level fMRI analysis,
+    bivariate GC is known to produce spurious connections when common drivers exist
+    (Ding et al. 2006). Prefer multivariate (conditional) GC for connectivity
+    graphs with more than ~5 ROIs.
     """
     validate_roi_time_series(roi_time_series)
 
     num_rois = roi_time_series.shape[0]
+    if num_rois > 5:
+        warnings.warn(
+            f"Bivariate Granger causality with {num_rois} ROIs: pairwise GC does not "
+            "condition on third-variable influences and may produce spurious connections. "
+            "See Ding et al. (2006) for details.",
+            UserWarning,
+            stacklevel=2,
+        )
     conn = np.zeros((num_rois, num_rois), dtype=np.float32)
 
     for i in range(num_rois):
@@ -1122,6 +965,17 @@ def compute_transfer_entropy(
     n_bins : number of histogram bins for density estimation (default 8).
     """
     validate_roi_time_series(roi_time_series)
+
+    n_samples = roi_time_series.shape[1]
+    if n_samples < n_bins ** 3 * 5:
+        warnings.warn(
+            f"Transfer entropy estimated with {n_bins} bins and only {n_samples} "
+            "timepoints. The histogram estimator requires large sample sizes "
+            f"(recommended minimum: {n_bins**3 * 5} timepoints). "
+            "Consider using fewer bins.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     num_rois = roi_time_series.shape[0]
     conn = np.zeros((num_rois, num_rois), dtype=np.float32)

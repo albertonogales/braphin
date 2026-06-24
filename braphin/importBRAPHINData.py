@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,9 +36,9 @@ class BRAPHINInputBundle:
     auxiliary_files: Dict[str, object] = field(default_factory=dict)
 
 
-class InputBRAPHINData:
+class InputfMRIData:
     """
-    Stage 1 of the BRAPHIN pipeline: fMRI data loading.
+    Stage 1 of the BRAPHIN fMRI pipeline: fMRI data loading.
 
     Accepts a path to the main fMRI file and an optional list of auxiliary
     files (BIDS-format TSV confound matrices, JSON sidecars, CSV, or NumPy
@@ -71,7 +72,38 @@ class InputBRAPHINData:
         validate_fmri_nifti(fmri_image)
         fmri_metadata = get_nifti_metadata(fmri_image)
 
+        # Issue #8 — auto-extract TR from NIfTI header (pixdim[4])
+        try:
+            zooms = fmri_image.header.get_zooms()
+            tr_from_header = float(zooms[3]) if len(zooms) >= 4 else None
+        except Exception:
+            tr_from_header = None
+
+        if tr_from_header is not None and 0.1 <= tr_from_header <= 20.0:
+            fmri_metadata["tr"] = tr_from_header
+        else:
+            fmri_metadata["tr"] = None  # User must supply via config
+
         auxiliary_data = self._load_auxiliary_files()
+
+        # Issue #6 — parse BIDS JSON sidecar for RepetitionTime and SliceTiming
+        for aux_path in self.auxiliary_paths:
+            if str(aux_path).lower().endswith(".json"):
+                try:
+                    with open(aux_path, encoding="utf-8") as f:
+                        sidecar = json.load(f)
+                    # BIDS sidecar RepetitionTime overrides the header TR
+                    if "RepetitionTime" in sidecar:
+                        tr_sidecar = float(sidecar["RepetitionTime"])
+                        if 0.1 <= tr_sidecar <= 20.0:
+                            fmri_metadata["tr"] = tr_sidecar
+                    # Per-slice acquisition time offsets
+                    if "SliceTiming" in sidecar:
+                        fmri_metadata["slice_timing_offsets"] = list(sidecar["SliceTiming"])
+                except (json.JSONDecodeError, OSError) as e:
+                    logger.warning(
+                        "Could not parse BIDS JSON sidecar %s: %s", aux_path, e
+                    )
 
         bundle = BRAPHINInputBundle(
             fmri_path=str(self.fmri_path),
@@ -142,6 +174,13 @@ class InputBRAPHINData:
         if bundle.fmri_metadata is not None:
             logger.info("  fMRI shape: %s", bundle.fmri_metadata.get("shape"))
             logger.info("  Number of dimensions: %s", bundle.fmri_metadata.get("ndim"))
+            tr = bundle.fmri_metadata.get("tr")
+            if tr is not None:
+                logger.info("  TR (from header): %s s", tr)
+            else:
+                logger.info(
+                    "  TR: not found in header — set via PreprocessConfig/DenoiseConfig"
+                )
 
         if bundle.auxiliary_files:
             logger.info("  Auxiliary files detected:")
@@ -149,3 +188,7 @@ class InputBRAPHINData:
                 logger.info("    - %s", file_name)
         else:
             logger.info("  No auxiliary files provided.")
+
+
+# Backward-compatibility alias — will be removed in a future major release.
+InputBRAPHINData = InputfMRIData

@@ -187,15 +187,17 @@ class Corr_cross_correlation_Estimator(Cross_correlation_rescaled):
         Rxy_norm = (1/(np.sqrt(Rxx_0*Ryy_0)))* Rxy
         negative_lag = Rxy_norm[:lag_0]
         positive_lag = Rxy_norm[lag_0 + 1:]
-        
-        corCC = positive_lag - negative_lag
-        
-        #We use the mean from lag 0 to a 10% displacement. 
+
+        # negative_lag is ordered from lag -(N-1) to lag -1, so it must be
+        # reversed before subtracting so that index 0 aligns lag -1 with lag +1.
+        corCC = positive_lag - negative_lag[::-1]
+
+        #We use the mean from lag 0 to a 10% displacement.
         disp = round((len(data_intervals[i])) * 0.10)
-        
+
         corCC_coef = corCC[:disp].mean()
-        
-        return corCC_coef    
+
+        return corCC_coef
     
 class Wpli_Estimator(Connectivity_With_Bands):
     def __init__(self):

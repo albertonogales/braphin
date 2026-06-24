@@ -14,7 +14,7 @@
     <div class="sidebar-logo-icon">🧠</div>
     <div class="sidebar-logo-text">
       <span class="name">BRAPHIN</span>
-      <span class="version">v1.0.0</span>
+      <span class="version">v1.1.0</span>
     </div>
   </a>
 
@@ -51,9 +51,114 @@
      Format follows <a href="https://keepachangelog.com/en/1.0.0/" target="_blank">Keep a Changelog</a>.
      Versioning follows <a href="https://semver.org/" target="_blank">Semantic Versioning</a>.</p>
 
-  <!-- ── Unreleased ── -->
+  <!-- ── 1.2.0 ── -->
   <div class="version-block">
-    <div class="version-tag unreleased">Unreleased</div>
+    <div class="version-tag">v1.2.0 — 2025</div>
+
+    <h3>Fixed (Critical)</h3>
+    <ul>
+      <li>
+        <strong>Regression/bandpass order</strong> (<code>denoise.py</code>, #1) — The pipeline now
+        correctly bandpass-filters both the signal and the confound regressors <em>before</em> OLS
+        regression (Lindquist et al. 2019). The previous order (regression → bandpass) inflated
+        functional connectivity estimates. New order: scrubbing → bandpass(signal + confounds) →
+        regression.
+      </li>
+      <li>
+        <strong>Motion correction now in mm world space</strong> (<code>preprocess.py</code>, #2) —
+        The rigid-body optimiser now operates in physical mm space by composing the NIfTI affine.
+        <code>motion_params</code> stores mm translations and radian rotations in world space.
+        Previously the optimiser operated in voxel index space, which is incorrect for anisotropic
+        voxels.
+      </li>
+      <li>
+        <strong><code>get_motion_confounds(bundle)</code> utility added</strong>
+        (<code>preprocess.py</code>, #3) — Motion parameters must be negated before use as confound
+        regressors. The new function <code>get_motion_confounds(preprocess_bundle)</code> returns
+        <code>-motion_params</code> (shape T × 6). Exported from <code>braphin</code>.
+      </li>
+    </ul>
+
+    <h3>Fixed (Moderate)</h3>
+    <ul>
+      <li>
+        <strong>Partial correlation raises error when N_ROIs ≥ T</strong>
+        (<code>tools.py</code>, #4) — Previously silently returned nonsensical results when the
+        covariance matrix was rank-deficient. Now raises <code>ConnectivityError</code> with a clear
+        diagnostic message.
+      </li>
+      <li>
+        <strong><code>PreprocessConfig.slice_axis</code> field added</strong>
+        (<code>config.py</code>, <code>preprocess.py</code>, #5) — New integer field (default
+        <code>2</code>, Z-axis) that allows coronal or sagittal acquisitions to specify the correct
+        slice dimension for slice-timing correction. Validated as 0, 1, or 2.
+      </li>
+      <li>
+        <strong>BIDS JSON sidecar parsing</strong> (<code>importBRAPHINData.py</code>, #6) —
+        Auxiliary JSON files are now parsed for <code>"SliceTiming"</code> (per-slice acquisition
+        offsets) and <code>"RepetitionTime"</code>. Stored in
+        <code>fmri_metadata["slice_timing_offsets"]</code> and <code>fmri_metadata["tr"]</code>.
+        A <code>"RepetitionTime"</code> found in the sidecar overrides the NIfTI header value.
+      </li>
+      <li>
+        <strong>NaN in confound matrix raises error</strong> (<code>denoise.py</code>, #7) —
+        Confound regression now raises <code>DenoisingError</code> listing the affected column
+        indices if any confound contains NaN (e.g. missing first-volume FD), instead of silently
+        propagating NaN through the residuals.
+      </li>
+      <li>
+        <strong>TR auto-extracted from NIfTI header</strong> (<code>importBRAPHINData.py</code>,
+        #8) — TR is now read from <code>pixdim[4]</code> at load time when plausible (0.1–20 s)
+        and stored in <code>fmri_metadata["tr"]</code>. The BIDS sidecar
+        <code>"RepetitionTime"</code> takes precedence. Users no longer need to set TR manually
+        when the NIfTI header is correctly populated.
+      </li>
+    </ul>
+
+    <h3>Fixed (Minor)</h3>
+    <ul>
+      <li>
+        <strong>Stale PLV/PLI/wPLI removed from <code>ConnectivityConfig</code> docstring</strong>
+        (<code>config.py</code>, #9) — The <code>method</code> field description now points to
+        <code>list_fmri_connectivity_measures()</code> instead of listing unsupported EEG-only
+        phase measures.
+      </li>
+      <li>
+        <strong>MI and TE histogram bias warnings</strong> (<code>tools.py</code>, #10) —
+        <code>UserWarning</code> is now raised when sample size is too small for reliable histogram
+        estimation (T &lt; n_bins² × 5 for MI; T &lt; n_bins³ × 5 for TE).
+      </li>
+      <li>
+        <strong>Bivariate Granger causality warning</strong> (<code>tools.py</code>, #11) —
+        <code>UserWarning</code> raised when N &gt; 5 ROIs, citing Ding et al. (2006). The docstring
+        explains why pairwise GC produces spurious connections in larger networks.
+      </li>
+      <li>
+        <strong>Signed imaginary coherence</strong> (<code>tools.py</code>, #12) —
+        <code>imag_coherence</code> now computes the standard Nolte et al. (2004) <em>signed</em>
+        imaginary coherence <code>Im(C_xy)</code>, which is antisymmetric: IC(i,j) = −IC(j,i).
+        Previously computed the unsigned absolute value <code>|Im(C_xy)|</code>, which discards
+        phase-direction information.
+      </li>
+      <li>
+        <strong>Confound file fallback patterns</strong> (<code>denoise.py</code>, #13) —
+        <code>_find_confounds_matrix</code> now also matches filenames containing
+        <code>"motion"</code>, <code>"regressors"</code>, <code>"nuisance"</code>, or
+        <code>"timeseries"</code> as fallbacks when no <code>"confound"</code> file is found.
+        A logged warning is emitted for fallback matches.
+      </li>
+      <li>
+        <strong>Centroid space mismatch warning</strong> (<code>transform.py</code>, #14) — A
+        <code>UserWarning</code> is issued when the atlas was resampled to fMRI space, indicating
+        that the stored centroid coordinates are from the reference atlas space (typically MNI152),
+        not the subject's native space.
+      </li>
+    </ul>
+  </div>
+
+  <!-- ── 1.1.0 ── -->
+  <div class="version-block">
+    <div class="version-tag">v1.1.0 — 2025</div>
 
     <h3>Added</h3>
 
@@ -62,14 +167,14 @@
       <li><strong>Motion correction</strong> — rigid-body 6-parameter realignment of each volume
           to the first volume using Powell optimisation (<code>scipy.optimize.minimize</code>) and
           <code>scipy.ndimage.affine_transform</code>. Motion parameters (T × 6) are stored in
-          <code>MRIPreprocessBundle.motion_params</code>.</li>
+          <code>BRAPHINPreprocessBundle.motion_params</code>.</li>
       <li><strong>Slice-timing correction</strong> — linear interpolation of each slice's time
           series to a common reference acquisition time. Supports <code>"sequential"</code> and
           <code>"interleaved"</code> slice orders. Requires <code>PreprocessConfig.tr</code>.</li>
       <li><strong>Outlier detection / scrubbing</strong> — DVARS-based outlier detection with
           configurable IQR-multiplier threshold. Outlier volumes are interpolated from neighbours
           (<code>"interpolate"</code>) or just flagged (<code>"mark"</code>). Outlier mask stored
-          in <code>MRIPreprocessBundle.outlier_mask</code>.</li>
+          in <code>BRAPHINPreprocessBundle.outlier_mask</code>.</li>
       <li><strong>Spatial smoothing</strong> — isotropic Gaussian kernel applied per 3-D volume.
           FWHM (mm) is converted to per-axis sigma using voxel sizes from the NIfTI header.</li>
     </ul>
@@ -84,20 +189,122 @@
           flagged volumes from clean neighbours.</li>
     </ul>
 
+    <h4>braphin.bands — fMRI frequency bands module</h4>
+    <ul>
+      <li><code>FMRI_BANDS</code> — predefined BOLD oscillation bands based on Zuo et al. (2010):
+          <code>slow5 (0.010–0.027 Hz)</code>, <code>slow4 (0.027–0.073 Hz)</code>,
+          <code>slow3 (0.073–0.167 Hz)</code>, <code>broadband (0.010–0.100 Hz)</code>.</li>
+      <li><code>bandpass_roi_time_series(roi_time_series, tr, low, high)</code> — zero-phase
+          Butterworth bandpass applied to ROI time series.</li>
+      <li><code>compute_band_connectivity(roi_time_series, tr, band_name, method)</code> —
+          compute connectivity for a single named BOLD band.</li>
+      <li><code>compute_all_bands_connectivity(roi_time_series, tr, method)</code> — compute
+          connectivity for all four BOLD bands; returns a dict
+          <code>{band_name: ndarray}</code>.</li>
+    </ul>
+
+    <h4>braphin.visualize — graph visualisation</h4>
+    <ul>
+      <li><code>build_fmri_graph(connectivity_matrix, roi_labels, roi_centroids_3d,
+          centroid_coordinate_space, projection)</code> — render the functional connectivity
+          graph projected onto a 2-D brain plane. Projections: <code>"axial"</code>,
+          <code>"coronal"</code>, <code>"sagittal"</code>. Returns a Matplotlib figure.</li>
+    </ul>
+
+    <h4>Orchestrator</h4>
+    <ul>
+      <li><code>ModelMRIData</code> (<code>braphin/model.py</code>) — high-level orchestrator that
+          runs the full fMRI pipeline (Input → Preprocess → Denoise → Transform → Connectivity)
+          via a single <code>connectivity_workflow()</code> call.</li>
+    </ul>
+
+    <h4>BRAPHINGraph — unified entry point</h4>
+    <ul>
+      <li><code>BRAPHINGraph</code> (exported as <code>Graph</code>) in <code>braphin/graph.py</code>
+          — subclasses <code>eegraph.graph.Graph</code> to add fMRI routing. Import via
+          <code>from braphin import Graph</code>.</li>
+    </ul>
+
+    <h4>Connectivity methods expanded (3 → 15)</h4>
+    <p>New methods added in this release:</p>
+    <ul>
+      <li><code>partial_correlation</code> — via precision matrix inversion</li>
+      <li><code>coherence</code> — magnitude-squared coherence (TR required)</li>
+      <li><code>imag_coherence</code> — mean absolute imaginary coherence (TR required)</li>
+      <li><code>lagged_coherence</code> — Pascual-Marqui lagged coherence (TR required)</li>
+      <li><code>aec</code> — Amplitude Envelope Correlation (Hilbert)</li>
+      <li><code>aec_orth</code> — Orthogonalized AEC (Hipp et al. 2012)</li>
+      <li><code>mutual_information</code> — joint-histogram mutual information</li>
+      <li><code>sync_likelihood</code> — Synchronisation Likelihood (Stam &amp; van Dijk 2002)</li>
+      <li><code>granger_causality</code> — bivariate linear Granger Causality (directed)</li>
+      <li><code>transfer_entropy</code> — histogram-based Transfer Entropy (directed)</li>
+      <li><code>pdc</code> — Partial Directed Coherence (Baccalá &amp; Sameshima 2001; TR required)</li>
+      <li><code>psi</code> — Phase Slope Index (Nolte et al. 2008; TR required)</li>
+    </ul>
+    <p>Full list: <code>pearson_correlation</code>, <code>partial_correlation</code>,
+    <code>cross_correlation</code>, <code>corr_cross_correlation</code>, <code>coherence</code>,
+    <code>imag_coherence</code>, <code>lagged_coherence</code>, <code>aec</code>,
+    <code>aec_orth</code>, <code>mutual_information</code>, <code>sync_likelihood</code>,
+    <code>granger_causality</code>, <code>transfer_entropy</code>, <code>pdc</code>,
+    <code>psi</code>.</p>
+
+    <h4>Standardised connectivity registries</h4>
+    <ul>
+      <li><code>FMRI_CONNECTIVITY_MEASURES</code> — dict mapping fMRI method names to descriptions.</li>
+      <li><code>EEG_CONNECTIVITY_MEASURES</code> — dict mapping EEG method names (from eegraph).</li>
+      <li><code>list_fmri_connectivity_measures()</code> — returns list of fMRI method names.</li>
+      <li><code>list_eeg_connectivity_measures()</code> — returns list of EEG method names.</li>
+    </ul>
+
     <h4>Configuration &amp; bundle fields</h4>
     <ul>
       <li>New <code>PreprocessConfig</code> fields: <code>tr</code>, <code>slice_order</code>,
           <code>slice_timing_ref_slice</code>, <code>outlier_threshold_dvars</code>,
           <code>scrubbing_strategy</code>.</li>
       <li>New <code>DenoiseConfig</code> field: <code>tr</code>.</li>
-      <li>New <code>MRIPreprocessBundle</code> fields: <code>motion_params</code> (ndarray T×6),
+      <li>New <code>BRAPHINPreprocessBundle</code> fields: <code>motion_params</code> (ndarray T×6),
           <code>outlier_mask</code> (bool ndarray T).</li>
     </ul>
 
     <h4>Tests</h4>
     <ul>
       <li>49 new pytest tests across <code>tests/test_preprocess_new_steps.py</code> covering all
-          six new implementations (total test suite: 387 tests).</li>
+          six new preprocessing implementations.</li>
+      <li>Additional tests for new connectivity methods, bands module, and graph visualisation.</li>
+      <li>Total test suite: 400+ tests.</li>
+    </ul>
+
+    <h3>Refactored</h3>
+    <ul>
+      <li><strong>Pipeline classes renamed</strong> to use the <code>BRAPHIN</code> prefix:
+          <code>InputMRIData</code> → <code>InputfMRIData</code>,
+          <code>PreprocessMRIData</code> → <code>PreprocessBRAPHINData</code>,
+          <code>DenoiseMRIData</code> → <code>DenoiseBRAPHINData</code>,
+          <code>TransformMRIData</code> → <code>TransformBRAPHINData</code>,
+          <code>ModelMRIConnectivityData</code> → <code>ModelBRAPHINConnectivityData</code>.</li>
+      <li><strong>Bundle dataclasses renamed</strong>:
+          <code>MRIInputBundle</code> → <code>BRAPHINInputBundle</code>,
+          <code>MRIPreprocessBundle</code> → <code>BRAPHINPreprocessBundle</code>,
+          <code>MRIDenoiseBundle</code> → <code>BRAPHINDenoiseBundle</code>,
+          <code>MRITransformBundle</code> → <code>BRAPHINTransformBundle</code>,
+          <code>MRIConnectivityBundle</code> → <code>BRAPHINConnectivityBundle</code>.</li>
+      <li><strong>Strict one-way dependency enforced</strong>: <code>eegraph</code> has zero
+          imports from <code>braphin</code>. All cross-modality routing lives in
+          <code>braphin.graph.BRAPHINGraph</code>.</li>
+      <li><code>apply_normalization</code> field in <code>PreprocessConfig</code> renamed to
+          <code>apply_voxel_zscore</code> to better reflect the per-voxel temporal z-score
+          operation it performs.</li>
+      <li><code>[BRAPHIN]</code> prefix now used in <code>display_info()</code> output across all
+          pipeline classes, replacing the old <code>[EEGraph]</code> prefix.</li>
+      <li>All Spanish comments and docstrings translated to English.</li>
+      <li><strong>Phase-based measures removed from fMRI</strong> (PLV, PLI, wPLI, dWPLI, PPC):
+          these measures rely on instantaneous phase estimates, which are unreliable for BOLD
+          signals due to the haemodynamic response function smoothing. They remain available for
+          EEG via the eegraph pipeline.</li>
+      <li>Layout helpers extracted from <code>ModelMRIData</code> to
+          <code>braphin/visualize.py</code> as <code>build_fmri_graph</code>.</li>
+      <li><code>modelateData.py</code> removed; functionality moved to <code>connectivity.py</code>
+          and <code>model.py</code>.</li>
     </ul>
 
     <h3>Planned</h3>
@@ -105,7 +312,7 @@
       <li>Per-voxel percent signal change (PSC) normalisation</li>
       <li>Brain masking to exclude non-brain voxels</li>
       <li>Dynamic (windowed) functional connectivity</li>
-      <li>TR extraction from NIfTI header and automatic propagation through the pipeline</li>
+      <li>TR extraction from NIfTI header — <em>implemented in v1.2.0</em></li>
     </ul>
   </div>
 
@@ -121,13 +328,13 @@
     <h3>Added</h3>
     <h4>braphin — fMRI pipeline</h4>
     <ul>
-      <li><code>InputMRIData</code> — NIfTI loading and validation with support for auxiliary files (TSV, CSV, NPY, JSON)</li>
-      <li><code>PreprocessMRIData</code> — NaN/inf cleaning and optional slice-timing correction, motion correction, outlier detection, per-voxel temporal z-score normalisation, and spatial smoothing</li>
-      <li><code>DenoiseMRIData</code> — least-squares confound regression</li>
-      <li><code>TransformMRIData</code> — atlas parcellation, automatic nearest-neighbour resampling to fMRI space, ROI mean time-series extraction, centroid computation and JSON caching</li>
-      <li><code>ModelMRIConnectivityData</code> — Pearson correlation, cross-correlation, corrected cross-correlation; optional absolute threshold</li>
+      <li><code>InputfMRIData</code> — NIfTI loading and validation with support for auxiliary files (TSV, CSV, NPY, JSON)</li>
+      <li><code>PreprocessBRAPHINData</code> — NaN/inf cleaning and optional slice-timing correction, motion correction, outlier detection, per-voxel temporal z-score normalisation, and spatial smoothing</li>
+      <li><code>DenoiseBRAPHINData</code> — least-squares confound regression</li>
+      <li><code>TransformBRAPHINData</code> — atlas parcellation, automatic nearest-neighbour resampling to fMRI space, ROI mean time-series extraction, centroid computation and JSON caching</li>
+      <li><code>ModelBRAPHINConnectivityData</code> — Pearson correlation, cross-correlation, corrected cross-correlation; optional absolute threshold</li>
       <li>Four bundled atlases: AAL (116 ROIs), Schaefer 100 / 200 / 400</li>
-      <li>Typed bundle dataclasses (<code>MRIInputBundle</code>, <code>MRIPreprocessBundle</code>, <code>MRIDenoiseBundle</code>, <code>MRITransformBundle</code>, <code>MRIConnectivityBundle</code>) for full pipeline traceability</li>
+      <li>Typed bundle dataclasses (<code>BRAPHINInputBundle</code>, <code>BRAPHINPreprocessBundle</code>, <code>BRAPHINDenoiseBundle</code>, <code>BRAPHINTransformBundle</code>, <code>BRAPHINConnectivityBundle</code>) for full pipeline traceability</li>
       <li><code>AtlasDefinition</code> registry and helpers (<code>list_supported_atlases</code>, <code>get_atlas_definition</code>, <code>get_atlas_roi_name_map</code>)</li>
       <li>Strategy pattern for connectivity (<code>ConnectivityStrategy</code> ABC + three concrete strategies)</li>
       <li>Hierarchical exception system (<code>BRAPHINError</code> → 7 specific subclasses)</li>
@@ -144,7 +351,6 @@
     <ul>
       <li>167 pytest unit and integration tests covering every pipeline stage</li>
       <li>All tests use synthetic data; no external files required</li>
-      <li>Total test suite (including Unreleased additions): 387 tests</li>
     </ul>
 
     <h3>Fixed</h3>

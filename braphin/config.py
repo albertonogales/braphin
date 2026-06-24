@@ -28,15 +28,17 @@ class PreprocessConfig:
     apply_motion_correction → no additional parameters; uses volume 0 as reference.
     apply_outlier_detection → uses outlier_threshold_dvars (IQR multiplier)
                               and scrubbing_strategy ("interpolate" or "mark").
-    apply_normalization     → per-voxel temporal z-score normalisation (mean and
-                              std computed along the time axis for each voxel).
     apply_smoothing         → requires smoothing_fwhm (mm); uses voxel sizes
                               from NIfTI metadata when available.
+    apply_voxel_zscore      → per-voxel temporal z-score normalisation. Disabled by
+                              default. Do NOT enable when using AEC or AEC-orth
+                              connectivity measures — z-scoring removes amplitude
+                              information and will produce incorrect results.
     """
     apply_motion_correction: bool = False
     apply_slice_timing: bool = False   # Requires tr; set tr when enabling
     apply_outlier_detection: bool = False
-    apply_normalization: bool = True
+    apply_voxel_zscore: bool = False
     apply_smoothing: bool = False
 
     # Smoothing parameter
@@ -46,6 +48,17 @@ class PreprocessConfig:
     tr: Optional[float] = None           # Repetition time in seconds (required for slice timing)
     slice_order: str = "sequential"      # "sequential" or "interleaved"
     slice_timing_ref_slice: int = 0      # Reference slice index (0 = first, -1 = middle)
+
+    # Slice-axis parameter
+    slice_axis: int = 2
+    """Spatial axis that corresponds to the slice dimension.
+
+    0 = X (sagittal acquisition), 1 = Y (coronal acquisition),
+    2 = Z (axial acquisition, default).  Change this when the fMRI data were
+    acquired in a non-axial orientation so that slice-timing correction
+    iterates over the correct dimension.
+    Must be one of {0, 1, 2}.
+    """
 
     # Outlier detection parameters
     outlier_threshold_dvars: float = 1.5  # IQR multiplier for DVARS threshold
@@ -67,6 +80,10 @@ class PreprocessConfig:
         if self.scrubbing_strategy not in ("interpolate", "mark"):
             raise ValueError(
                 "PreprocessConfig: 'scrubbing_strategy' must be 'interpolate' or 'mark'."
+            )
+        if self.slice_axis not in (0, 1, 2):
+            raise ValueError(
+                "PreprocessConfig: 'slice_axis' must be 0, 1, or 2."
             )
 
 
@@ -128,18 +145,28 @@ class ConnectivityConfig:
     Fields
     ------
     method : str
-        Connectivity measure to use. Supported canonical names:
+        Connectivity measure to use.  The 15 supported canonical names are:
         ``pearson_correlation``, ``cross_correlation``,
         ``corr_cross_correlation``, ``partial_correlation``,
-        ``plv``, ``pli``, ``wpli``, ``coherence``, ``imag_coherence``.
+        ``aec``, ``aec_orth``, ``mutual_information``, ``sync_likelihood``,
+        ``coherence``, ``imag_coherence``, ``lagged_coherence``,
+        ``granger_causality``, ``transfer_entropy``, ``pdc``, ``psi``.
         Aliases are accepted (see ``braphin.tools.CONNECTIVITY_ALIASES``).
+        For a programmatic list call ``braphin.tools.list_fmri_connectivity_measures()``.
+
+        Note: EEG-only phase measures (``plv``, ``pli``, ``wpli``, ``dwpli``,
+        ``ppc``) are **not** implemented in this fMRI pipeline and will raise
+        ``ConnectivityError`` if used.
     threshold : float or None
         Absolute threshold applied after connectivity computation.
         Edges with |value| < threshold are zeroed. None = no thresholding.
     window_size : float or None
-        None = static connectivity. A positive float (seconds) requests
-        windowed dynamic connectivity, which is not yet implemented and is
-        flagged as pending in the output bundle.
+        None = static connectivity. A positive float (seconds) enables
+        sliding-window dynamic functional connectivity (dFC).
+        Requires ``tr`` to be set.
+    step_size : float or None
+        Step between successive windows in seconds. Defaults to
+        ``window_size / 2`` (50 % overlap). Requires ``window_size`` to be set.
     tr : float or None
         Repetition time in seconds (= 1 / sample_rate). Required for
         ``coherence`` and ``imag_coherence``; ignored for all other methods.
@@ -149,6 +176,7 @@ class ConnectivityConfig:
     threshold: Optional[float] = None
     tr: Optional[float] = None
     model_order: int = 1
+    step_size: Optional[float] = None
 
     def __post_init__(self) -> None:
         if self.threshold is not None and self.threshold < 0:
@@ -166,6 +194,10 @@ class ConnectivityConfig:
         if self.model_order < 1:
             raise ValueError(
                 "ConnectivityConfig: 'model_order' must be >= 1."
+            )
+        if self.step_size is not None and self.step_size <= 0:
+            raise ValueError(
+                "ConnectivityConfig: 'step_size' must be > 0 when set."
             )
 
 

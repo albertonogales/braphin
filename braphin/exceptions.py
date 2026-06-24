@@ -1,18 +1,18 @@
 class BRAPHINError(Exception):
     """
-    Excepción base de la librería BRAPHIN.
-    Todas las excepciones propias del proyecto heredarán de esta.
+    Base exception for the BRAPHIN library.
+    All project-specific exceptions inherit from this class.
     """
     pass
 
 
 class BRAPHINInputError(BRAPHINError):
     """
-    Error relacionado con la entrada de datos.
-    Por ejemplo:
-    - extensión no soportada,
-    - archivo inexistente,
-    - combinación de archivos inválida,
+    Error related to data input.
+    Examples:
+    - unsupported file extension,
+    - non-existent file,
+    - invalid file combination,
     - etc.
     """
     pass
@@ -20,11 +20,11 @@ class BRAPHINInputError(BRAPHINError):
 
 class BRAPHINFormatError(BRAPHINError):
     """
-    Error relacionado con el formato interno de los datos.
-    Por ejemplo:
-    - una matriz que no es 2D,
-    - una forma inesperada,
-    - un NIfTI que no tiene las dimensiones esperadas,
+    Error related to the internal format of the data.
+    Examples:
+    - a matrix that is not 2-D,
+    - an unexpected shape,
+    - a NIfTI image without the expected dimensions,
     - etc.
     """
     pass
@@ -32,11 +32,11 @@ class BRAPHINFormatError(BRAPHINError):
 
 class AtlasError(BRAPHINError):
     """
-    Error relacionado con el atlas.
-    Por ejemplo:
-    - atlas no soportado,
-    - falta el archivo del atlas,
-    - configuración incompatible,
+    Error related to the atlas.
+    Examples:
+    - unsupported atlas,
+    - missing atlas file,
+    - incompatible configuration,
     - etc.
     """
     pass
@@ -44,36 +44,33 @@ class AtlasError(BRAPHINError):
 
 class PreprocessingError(BRAPHINError):
     """
-    Error relacionado con la fase de preprocesado.
-    Lo definimos ya aunque todavía no implementemos esa parte,
-    para dejar la arquitectura lista desde el principio.
+    Error related to the preprocessing stage.
     """
     pass
 
 
 class DenoisingError(BRAPHINError):
     """
-    Error relacionado con la fase de denoising.
-    Igual que con preprocessing, lo dejamos preparado ya.
+    Error related to the denoising stage.
     """
     pass
 
 
 class TransformationError(BRAPHINError):
     """
-    Error relacionado con la transformación de datos:
-    por ejemplo, fallos al mapear el atlas o al extraer ROIs.
+    Error related to data transformation;
+    for example, failures when mapping the atlas or extracting ROIs.
     """
     pass
 
 
 class ConnectivityError(BRAPHINError):
     """
-    Error relacionado con el cálculo de conectividad.
-    Por ejemplo:
-    - no hay series ROI disponibles,
-    - dimensiones incorrectas,
-    - método de conectividad no soportado,
+    Error related to connectivity computation.
+    Examples:
+    - no ROI time series available,
+    - incorrect dimensions,
+    - unsupported connectivity method,
     - etc.
     """
     pass

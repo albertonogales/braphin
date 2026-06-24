@@ -40,7 +40,7 @@ def _run(arr, affine=None, **cfg_kwargs):
         apply_motion_correction=False,
         apply_slice_timing=False,
         apply_outlier_detection=False,
-        apply_normalization=False,
+        apply_voxel_zscore=False,
         apply_smoothing=False,
         **cfg_kwargs,
     )
@@ -119,11 +119,11 @@ def test_clean_data_reports_zero_replacements():
 def test_normalization_changes_data(input_bundle):
     cfg_off = PreprocessConfig(
         apply_motion_correction=False, apply_slice_timing=False,
-        apply_outlier_detection=False, apply_normalization=False, apply_smoothing=False,
+        apply_outlier_detection=False, apply_voxel_zscore=False, apply_smoothing=False,
     )
     cfg_on = PreprocessConfig(
         apply_motion_correction=False, apply_slice_timing=False,
-        apply_outlier_detection=False, apply_normalization=True, apply_smoothing=False,
+        apply_outlier_detection=False, apply_voxel_zscore=True, apply_smoothing=False,
     )
     raw = PreprocessBRAPHINData(input_bundle, cfg_off).run().preprocessed_data
     normed = PreprocessBRAPHINData(input_bundle, cfg_on).run().preprocessed_data
@@ -133,23 +133,23 @@ def test_normalization_changes_data(input_bundle):
 def test_normalization_step_recorded(input_bundle):
     cfg = PreprocessConfig(
         apply_motion_correction=False, apply_slice_timing=False,
-        apply_outlier_detection=False, apply_normalization=True, apply_smoothing=False,
+        apply_outlier_detection=False, apply_voxel_zscore=True, apply_smoothing=False,
     )
     result = PreprocessBRAPHINData(input_bundle, cfg).run()
-    assert "per_voxel_temporal_normalisation" in result.applied_steps
+    assert "per_voxel_temporal_zscore" in result.applied_steps
 
 
 def test_normalization_metadata_flag(input_bundle):
     cfg = PreprocessConfig(
         apply_motion_correction=False, apply_slice_timing=False,
-        apply_outlier_detection=False, apply_normalization=True, apply_smoothing=False,
+        apply_outlier_detection=False, apply_voxel_zscore=True, apply_smoothing=False,
     )
     result = PreprocessBRAPHINData(input_bundle, cfg).run()
-    assert result.preprocess_metadata["normalization_applied"] is True
+    assert result.preprocess_metadata["voxel_zscore_applied"] is True
 
 
 def test_no_normalization_metadata_flag(preprocess_bundle):
-    assert preprocess_bundle.preprocess_metadata["normalization_applied"] is False
+    assert preprocess_bundle.preprocess_metadata["voxel_zscore_applied"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +162,7 @@ def test_all_steps_in_applied_steps_when_flags_true(input_bundle):
         apply_motion_correction=True,
         apply_slice_timing=True,
         apply_outlier_detection=True,
-        apply_normalization=False,
+        apply_voxel_zscore=False,
         apply_smoothing=True,
         tr=2.0,
     )

@@ -97,28 +97,31 @@ def test_aal_roi_name_map_has_116_entries():
     assert len(name_map) == 116
 
 
-def test_aal_roi_name_map_keys_are_1_to_116():
-    """Keys must match the sequential integer labels stored in the NIfTI file."""
+def test_aal_roi_name_map_keys_are_coded_ids():
+    """Keys must be the hierarchical coded IDs stored as voxel values in the AAL NIfTI file
+    (e.g. 2001 for Precentral_L, 9170 for Vermis_10).  transform.py looks up names by
+    the raw NIfTI label value, so the keys must match those values."""
     name_map = get_atlas_roi_name_map("aal")
-    assert set(name_map.keys()) == set(range(1, 117))
+    # All keys should be in the known hierarchical range for AAL
+    assert all(isinstance(k, int) and k >= 2001 for k in name_map.keys())
 
 
-def test_aal_roi_name_map_no_old_coded_ids():
-    """Old coded IDs (2001, 2101 …) must no longer be present."""
+def test_aal_roi_name_map_contains_expected_coded_ids():
+    """Verify a sample of known AAL coded IDs are present."""
     name_map = get_atlas_roi_name_map("aal")
-    for old_id in [2001, 2002, 2101, 2102, 4101, 9001]:
-        assert old_id not in name_map, f"Old coded ID {old_id} still present in map"
+    for coded_id in [2001, 2002, 4101, 4102, 4201, 4202, 9001, 9170]:
+        assert coded_id in name_map, f"Expected coded ID {coded_id} missing from map"
 
 
 def test_aal_roi_name_map_spot_checks():
     name_map = get_atlas_roi_name_map("aal")
-    assert name_map[1] == "Precentral_L"
-    assert name_map[2] == "Precentral_R"
-    assert name_map[37] == "Hippocampus_L"
-    assert name_map[38] == "Hippocampus_R"
-    assert name_map[41] == "Amygdala_L"
-    assert name_map[42] == "Amygdala_R"
-    assert name_map[116] == "Vermis_10"
+    assert name_map[2001] == "Precentral_L"
+    assert name_map[2002] == "Precentral_R"
+    assert name_map[4101] == "Hippocampus_L"
+    assert name_map[4102] == "Hippocampus_R"
+    assert name_map[4201] == "Amygdala_L"
+    assert name_map[4202] == "Amygdala_R"
+    assert name_map[9170] == "Vermis_10"
 
 
 def test_schaefer_has_no_roi_name_map():

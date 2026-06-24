@@ -61,9 +61,76 @@ class BRAPHINConnectivityBundle:
     roi_labels: List[str] = field(default_factory=list)
     roi_time_series: Optional[np.ndarray] = None
     connectivity_matrix: Optional[np.ndarray] = None
+    dynamic_connectivity_matrices: Optional[np.ndarray] = None
+    window_centers_sec: Optional[List[float]] = None
     applied_steps: List[str] = field(default_factory=list)
     pending_steps: List[str] = field(default_factory=list)
     connectivity_metadata: Dict[str, object] = field(default_factory=dict)
+
+
+def _compute_sliding_window_dfc(
+    roi_time_series: np.ndarray,
+    strategy,
+    window_size: float,
+    tr: float,
+    step_size: Optional[float] = None,
+):
+    """
+    Compute sliding-window dynamic functional connectivity (dFC).
+
+    Parameters
+    ----------
+    roi_time_series : ndarray (N, T)
+    strategy        : ConnectivityStrategy instance
+    window_size     : window duration in seconds
+    tr              : repetition time in seconds
+    step_size       : step between windows in seconds; defaults to window_size / 2.
+
+    Returns
+    -------
+    dynamic_matrices : ndarray (n_windows, N, N)
+    window_centers   : list[float], centre time of each window in seconds
+    """
+    N, T = roi_time_series.shape
+    window_samples = int(round(window_size / tr))
+    if step_size is None:
+        step_size = window_size / 2.0
+    step_samples = max(1, int(round(step_size / tr)))
+
+    if window_samples < 2:
+        raise ConnectivityError(
+            f"Window size {window_size}s corresponds to {window_samples} sample(s) "
+            f"at TR={tr}s. At least 2 samples per window are required."
+        )
+    if window_samples >= T:
+        raise ConnectivityError(
+            f"Window size {window_size}s ({window_samples} samples) >= total "
+            f"time series length {T} samples (duration={T * tr:.1f}s). "
+            "Reduce window_size or use a longer scan."
+        )
+
+    starts = list(range(0, T - window_samples + 1, step_samples))
+    if not starts:
+        raise ConnectivityError(
+            "No windows fit in the time series with the given window_size and step_size."
+        )
+
+    dynamic_matrices = []
+    window_centers: List[float] = []
+
+    for start in starts:
+        end = start + window_samples
+        window_ts = roi_time_series[:, start:end]
+        mat = strategy.compute(window_ts)
+        dynamic_matrices.append(mat)
+        window_centers.append((start + end) / 2.0 * tr)
+
+    logger.info(
+        "[BRAPHIN] Sliding-window dFC: %d windows, window=%.1fs, step=%.1fs",
+        len(dynamic_matrices), window_size, step_size,
+    )
+
+    return np.stack(dynamic_matrices, axis=0), window_centers
 
 
 class ModelBRAPHINConnectivityData:
@@ -109,11 +176,35 @@ class ModelBRAPHINConnectivityData:
             model_order=self.config.model_order,
         )
 
-        # ── 2. Compute ROI × ROI matrix ───────────────────────────────────────
-        connectivity_matrix = strategy.compute(roi_time_series)
-
         applied_steps = [self.config.method]
-        pending_steps: List[str] = []
+        dynamic_connectivity_matrices = None
+        window_centers_sec = None
+
+        # ── 2. Compute connectivity ───────────────────────────────────────────
+        # When window_size is set: compute per-window matrices first (matching
+        # EEG behaviour), then derive the static summary as their mean.
+        # When window_size is None: compute one matrix on the whole signal.
+        if self.config.window_size is not None:
+            if self.config.tr is None or self.config.tr <= 0:
+                raise ConnectivityError(
+                    "ConnectivityConfig.tr must be set (> 0) for sliding-window "
+                    "dynamic connectivity."
+                )
+            dynamic_connectivity_matrices, window_centers_sec = (
+                _compute_sliding_window_dfc(
+                    roi_time_series=roi_time_series,
+                    strategy=strategy,
+                    window_size=self.config.window_size,
+                    tr=self.config.tr,
+                    step_size=self.config.step_size,
+                )
+            )
+            applied_steps.append("windowed_dynamic_connectivity")
+            # Static summary = mean over all windows
+            connectivity_matrix = np.mean(dynamic_connectivity_matrices, axis=0).astype(np.float32)
+            applied_steps.append("mean_over_windows")
+        else:
+            connectivity_matrix = strategy.compute(roi_time_series)
 
         # ── 3. Optional absolute threshold ───────────────────────────────────
         if self.config.threshold is not None:
@@ -123,15 +214,10 @@ class ModelBRAPHINConnectivityData:
             )
             applied_steps.append("threshold")
 
-        # ── 4. Dynamic connectivity (planned) ─────────────────────────────────
-        # window_size is not None signals a request for windowed dynamic
-        # connectivity, which is not yet implemented; flag it as pending.
-        if self.config.window_size is not None:
-            pending_steps.append("windowed_dynamic_connectivity")
-
         connectivity_metadata = self._build_connectivity_metadata(
             roi_time_series=roi_time_series,
             connectivity_matrix=connectivity_matrix,
+            dynamic_connectivity_matrices=dynamic_connectivity_matrices,
         )
 
         bundle = BRAPHINConnectivityBundle(
@@ -144,8 +230,10 @@ class ModelBRAPHINConnectivityData:
             roi_labels=list(self.transform_bundle.roi_labels),
             roi_time_series=roi_time_series,
             connectivity_matrix=connectivity_matrix,
+            dynamic_connectivity_matrices=dynamic_connectivity_matrices,
+            window_centers_sec=window_centers_sec,
             applied_steps=applied_steps,
-            pending_steps=pending_steps,
+            pending_steps=[],
             connectivity_metadata=connectivity_metadata,
         )
 
@@ -182,6 +270,7 @@ class ModelBRAPHINConnectivityData:
         self,
         roi_time_series: np.ndarray,
         connectivity_matrix: np.ndarray,
+        dynamic_connectivity_matrices: Optional[np.ndarray] = None,
     ) -> Dict[str, object]:
         """Build traceability metadata for the connectivity stage."""
         off_diagonal_mask = ~np.eye(connectivity_matrix.shape[0], dtype=bool)
@@ -191,6 +280,11 @@ class ModelBRAPHINConnectivityData:
             "method": self.config.method,
             "threshold": self.config.threshold,
             "window_size": self.config.window_size,
+            "step_size": self.config.step_size,
+            "n_windows": (
+                int(dynamic_connectivity_matrices.shape[0])
+                if dynamic_connectivity_matrices is not None else None
+            ),
             "tr": self.config.tr,
             "num_rois": int(roi_time_series.shape[0]),
             "num_timepoints": int(roi_time_series.shape[1]),
@@ -253,3 +347,10 @@ class ModelBRAPHINConnectivityData:
             logger.info("  Pending steps (not yet implemented):")
             for step in bundle.pending_steps:
                 logger.info("    - %s", step)
+
+        if bundle.dynamic_connectivity_matrices is not None:
+            logger.info(
+                "  Dynamic FC windows:   %d  (shape %s)",
+                bundle.dynamic_connectivity_matrices.shape[0],
+                bundle.dynamic_connectivity_matrices.shape,
+            )

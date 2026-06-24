@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import tempfile
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -84,6 +85,24 @@ class TransformBRAPHINData:
 
         roi_ids = self._get_valid_roi_ids(atlas_labels)
         roi_labels = self._build_roi_labels(roi_ids)
+
+        # Issue #14 — warn when a named atlas was resampled to fMRI space:
+        # canonical centroids are from the reference atlas space (typically MNI152),
+        # not the subject's native space.
+        _centroid_space_warning: Optional[str] = None
+        if atlas_resampled and self.config.atlas_name is not None:
+            warnings.warn(
+                "Atlas was resampled to the fMRI voxel grid. The ROI centroid "
+                "coordinates attached to the graph are from the original reference "
+                "atlas space (typically MNI152), not the subject's native space. "
+                "For native-space analyses, register your fMRI to MNI space first, "
+                "or provide subject-specific ROI centroids.",
+                UserWarning,
+                stacklevel=2,
+            )
+            _centroid_space_warning = (
+                "Centroids are in reference atlas space, not subject native space."
+            )
 
         # Centroid resolution strategy:
         # - Named atlas  → canonical reference centroids (cached JSON, world space)

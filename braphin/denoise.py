@@ -40,12 +40,14 @@ class DenoiseBRAPHINData:
     """
     Main denoising class for BRAPHIN.
 
-    Implemented steps (in execution order):
-    1. Confound regression via ordinary least squares (regress_confounds=True)
-    2. Outlier scrubbing (apply_scrubbing=True)
+    Implemented steps (in execution order, Lindquist et al. 2019):
+    1. Outlier scrubbing (apply_scrubbing=True)
        Uses the outlier_mask from the preprocess bundle if available; otherwise
        recomputes DVARS from the denoised signal.
-    3. Butterworth bandpass filtering (apply_bandpass=True; requires tr)
+    2. Butterworth bandpass filtering (apply_bandpass=True; requires tr)
+       When both bandpass AND confound regression are enabled, the confounds
+       are bandpass-filtered with the same filter before OLS (Lindquist 2019).
+    3. Confound regression via ordinary least squares (regress_confounds=True)
     """
 
     def __init__(
@@ -71,13 +73,27 @@ class DenoiseBRAPHINData:
         confounds_shape = None
         n_scrubbed = 0
 
-        # -- 1. Confound regression -------------------------------------------
+        # -- 1. Scrubbing (must come first to avoid ringing) ------------------
+        if self.config.apply_scrubbing:
+            voxel_time_series, n_scrubbed = self._apply_scrubbing(voxel_time_series)
+            applied_steps.append("scrubbing")
+
+        # -- 2 & 3. Bandpass + confound regression ----------------------------
+        # When both are enabled, confounds must be bandpass-filtered with the
+        # same filter before OLS (Lindquist et al. 2019, NeuroImage).
         if self.config.regress_confounds:
             confounds_name, confounds_matrix = self._find_confounds_matrix(
                 self.preprocess_bundle.auxiliary_files,
                 voxel_time_series.shape[1],
             )
             if confounds_matrix is not None:
+                if self.config.apply_bandpass:
+                    # Filter signal and confounds with the same filter
+                    voxel_time_series = self._apply_bandpass_filter(voxel_time_series)
+                    applied_steps.append("bandpass_filtering")
+                    confounds_matrix = self._apply_bandpass_filter_to_confounds(
+                        confounds_matrix
+                    )
                 voxel_time_series = self._regress_confounds(
                     voxel_time_series, confounds_matrix
                 )
@@ -85,14 +101,11 @@ class DenoiseBRAPHINData:
                 confounds_shape = tuple(confounds_matrix.shape)
             else:
                 pending_steps.append("confound_regression_requested_but_no_confounds_found")
-
-        # -- 2. Scrubbing -----------------------------------------------------
-        if self.config.apply_scrubbing:
-            voxel_time_series, n_scrubbed = self._apply_scrubbing(voxel_time_series)
-            applied_steps.append("scrubbing")
-
-        # -- 3. Bandpass filter -----------------------------------------------
-        if self.config.apply_bandpass:
+                if self.config.apply_bandpass:
+                    voxel_time_series = self._apply_bandpass_filter(voxel_time_series)
+                    applied_steps.append("bandpass_filtering")
+        elif self.config.apply_bandpass:
+            # Bandpass only (no regression)
             voxel_time_series = self._apply_bandpass_filter(voxel_time_series)
             applied_steps.append("bandpass_filtering")
 
@@ -149,20 +162,50 @@ class DenoiseBRAPHINData:
         num_timepoints.
         Continue searching if this file is incompatible; do not abort on the
         first failure.
+
+        Search order:
+        1. Files whose name contains "confound" (standard BIDS pattern).
+        2. If none found, fall back to files containing "motion", "regressors",
+           "nuisance", or "timeseries" — a warning is emitted for these.
         """
-        for file_name, data in auxiliary_files.items():
-            if "confound" not in file_name.lower():
-                continue
+        _STANDARD_PATTERN = "confound"
+        _FALLBACK_PATTERNS = ("motion", "regressors", "nuisance", "timeseries")
+
+        def _try_match(file_name, data, pattern, is_fallback):
+            if pattern not in file_name.lower():
+                return None, None
             if not isinstance(data, np.ndarray):
-                continue
+                return None, None
             c = np.asarray(data, dtype=np.float32)
             if c.ndim == 1 and c.shape[0] == num_timepoints:
-                return file_name, c.reshape(num_timepoints, 1)
-            if c.ndim == 2 and c.shape[0] == num_timepoints:
-                return file_name, c
-            if c.ndim == 2 and c.shape[1] == num_timepoints:
-                return file_name, c.T
-            continue   # shape mismatch -- skip
+                matrix = c.reshape(num_timepoints, 1)
+            elif c.ndim == 2 and c.shape[0] == num_timepoints:
+                matrix = c
+            elif c.ndim == 2 and c.shape[1] == num_timepoints:
+                matrix = c.T
+            else:
+                return None, None  # shape mismatch — skip
+            if is_fallback:
+                logger.warning(
+                    "Confound file matched via fallback pattern '%s': %s",
+                    pattern,
+                    file_name,
+                )
+            return file_name, matrix
+
+        # Pass 1: standard "confound" pattern
+        for file_name, data in auxiliary_files.items():
+            name, matrix = _try_match(file_name, data, _STANDARD_PATTERN, False)
+            if name is not None:
+                return name, matrix
+
+        # Pass 2: fallback patterns
+        for pattern in _FALLBACK_PATTERNS:
+            for file_name, data in auxiliary_files.items():
+                name, matrix = _try_match(file_name, data, pattern, True)
+                if name is not None:
+                    return name, matrix
+
         return None, None
 
     def _regress_confounds(
@@ -183,6 +226,13 @@ class DenoiseBRAPHINData:
         if confounds_matrix.shape[0] != T:
             raise DenoisingError(
                 "The number of rows in the confounds matrix does not match the number of timepoints."
+            )
+
+        if np.any(np.isnan(confounds_matrix)):
+            nan_cols = np.where(np.any(np.isnan(confounds_matrix), axis=0))[0]
+            raise DenoisingError(
+                f"Confound matrix contains NaN in columns {nan_cols.tolist()}. "
+                "Check your confound file for missing values (e.g. missing first-volume FD)."
             )
 
         signal_tv = voxel_time_series.T     # (T, V)
@@ -270,40 +320,21 @@ class DenoiseBRAPHINData:
         return cleaned.astype(np.float32), n_scrubbed
 
     # -------------------------------------------------------------------------
-    # Step 3 -- Temporal bandpass filter
+    # Step 2 -- Temporal bandpass filter
     # -------------------------------------------------------------------------
 
-    def _apply_bandpass_filter(
-        self, voxel_time_series: np.ndarray
-    ) -> np.ndarray:
+    def _make_bandpass_sos(self, tr: float, low: float, high: float):
         """
-        Applies a zero-phase 5th-order Butterworth bandpass filter to every
-        voxel's time series.
-
-        Requires config.tr (seconds).  Raises DenoisingError if None.
-
-        Filter band: [config.bandpass_low, config.bandpass_high] Hz.
-        Both bounds must be strictly below the Nyquist frequency (0.5 / tr).
+        Build a 4th-order Butterworth bandpass SOS filter.
+        Raises DenoisingError on invalid parameters.
         """
-        from scipy.signal import butter, sosfiltfilt
+        from scipy.signal import butter
 
-        if self.config.tr is None:
-            raise DenoisingError(
-                "Bandpass filtering requires 'tr' to be set in DenoiseConfig "
-                "(e.g. DenoiseConfig(apply_bandpass=True, tr=2.0))."
-            )
-
-        tr = float(self.config.tr)
-        fs = 1.0 / tr                        # sampling frequency (Hz)
-        nyq = fs / 2.0                       # Nyquist frequency (Hz)
-
-        low = self.config.bandpass_low
-        high = self.config.bandpass_high
+        fs = 1.0 / tr
+        nyq = fs / 2.0
 
         if low <= 0.0:
-            raise DenoisingError(
-                f"bandpass_low must be > 0 Hz (got {low})."
-            )
+            raise DenoisingError(f"bandpass_low must be > 0 Hz (got {low}).")
         if high >= nyq:
             raise DenoisingError(
                 f"bandpass_high ({high} Hz) must be below the Nyquist frequency "
@@ -314,8 +345,57 @@ class DenoiseBRAPHINData:
                 f"bandpass_low ({low} Hz) must be less than bandpass_high ({high} Hz)."
             )
 
+        return butter(4, [low, high], btype="bandpass", output="sos", fs=fs)
+
+    def _apply_bandpass_filter_to_confounds(
+        self, confounds_matrix: np.ndarray
+    ) -> np.ndarray:
+        """
+        Apply the same Butterworth bandpass filter used on the signal to each
+        column of the confounds matrix (shape T x K, time axis=0).
+        """
+        from scipy.signal import sosfiltfilt
+
+        if self.config.tr is None:
+            raise DenoisingError(
+                "Bandpass filtering of confounds requires 'tr' to be set in DenoiseConfig."
+            )
+
+        tr = float(self.config.tr)
+        low = self.config.bandpass_low
+        high = self.config.bandpass_high
+        sos = self._make_bandpass_sos(tr, low, high)
+
+        # confounds_matrix is (T, K); filter along axis=0 (time)
+        filtered = sosfiltfilt(sos, confounds_matrix.astype(np.float64), axis=0)
+        return filtered.astype(np.float32)
+
+    def _apply_bandpass_filter(
+        self, voxel_time_series: np.ndarray
+    ) -> np.ndarray:
+        """
+        Applies a zero-phase 4th-order Butterworth bandpass filter to every
+        voxel's time series.
+
+        Requires config.tr (seconds).  Raises DenoisingError if None.
+
+        Filter band: [config.bandpass_low, config.bandpass_high] Hz.
+        Both bounds must be strictly below the Nyquist frequency (0.5 / tr).
+        """
+        from scipy.signal import sosfiltfilt
+
+        if self.config.tr is None:
+            raise DenoisingError(
+                "Bandpass filtering requires 'tr' to be set in DenoiseConfig "
+                "(e.g. DenoiseConfig(apply_bandpass=True, tr=2.0))."
+            )
+
+        tr = float(self.config.tr)
+        low = self.config.bandpass_low
+        high = self.config.bandpass_high
+
         T = voxel_time_series.shape[1]
-        # Minimum length for sosfiltfilt with 5th-order filter:
+        # Minimum length for sosfiltfilt with 4th-order filter:
         # padlen default ~= 3 * 2 * n_sections = 3 * 2 * 3 = 18
         # We need T > 2 * padlen
         min_t = 40
@@ -325,14 +405,7 @@ class DenoiseBRAPHINData:
                 f"(got {T}). Use a longer scan or disable apply_bandpass."
             )
 
-        # Design Butterworth bandpass
-        sos = butter(
-            5,
-            [low, high],
-            btype="bandpass",
-            output="sos",
-            fs=fs,
-        )
+        sos = self._make_bandpass_sos(tr, low, high)
 
         # Apply zero-phase filter along time axis (axis=1 of (V, T) matrix)
         filtered = sosfiltfilt(sos, voxel_time_series.astype(np.float64), axis=1)

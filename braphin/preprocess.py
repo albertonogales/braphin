@@ -24,8 +24,14 @@ class BRAPHINPreprocessBundle:
     - pending_steps: Always empty. Retained for backward compatibility; all
                      preprocessing steps are fully implemented.
     - preprocess_metadata: information useful for debugging and traceability
-    - motion_params: array (T, 6) with estimated motion parameters,
-                     or None if motion correction was not applied
+    - motion_params: array (T, 6) with estimated rigid-body parameters,
+                     or None if motion correction was not applied.
+                     World-space rigid-body parameters mapping moving→reference.
+                     Columns: [tx, ty, tz, rx, ry, rz] where translations are
+                     in mm (same units as the NIfTI affine) and rotations are
+                     in radians.  Negate before using as confound regressors,
+                     or use ``get_motion_confounds(bundle)`` which returns the
+                     negated version.
     - outlier_mask: boolean array (T,) marking outlier volumes,
                     or None if outlier detection was not applied
     """
@@ -50,8 +56,8 @@ class PreprocessBRAPHINData:
     2. Slice-timing correction (apply_slice_timing=True; requires tr)
     3. Motion correction (apply_motion_correction=True)
     4. Outlier detection / scrubbing (apply_outlier_detection=True)
-    5. Per-voxel temporal normalisation (apply_normalization=True)
-    6. Gaussian spatial smoothing (apply_smoothing=True)
+    5. Spatial smoothing (apply_smoothing=True)
+    6. Per-voxel temporal z-score normalisation (apply_voxel_zscore=True; disabled by default)
     """
 
     def __init__(
@@ -101,15 +107,15 @@ class PreprocessBRAPHINData:
             )
             applied_steps.append("outlier_detection")
 
-        # -- 5. Per-voxel temporal normalisation --------------------------------
-        if self.config.apply_normalization:
-            fmri_data = self._normalize_data(fmri_data)
-            applied_steps.append("per_voxel_temporal_normalisation")
-
-        # -- 6. Spatial smoothing -----------------------------------------------
+        # -- 5. Spatial smoothing -----------------------------------------------
         if self.config.apply_smoothing:
             fmri_data = self._apply_spatial_smoothing(fmri_data)
             applied_steps.append("spatial_smoothing")
+
+        # -- 6. Per-voxel temporal z-score normalisation ------------------------
+        if self.config.apply_voxel_zscore:
+            fmri_data = self._normalize_data(fmri_data)
+            applied_steps.append("per_voxel_temporal_zscore")
 
         voxel_time_series = self._reshape_to_voxel_time_series(fmri_data)
 
@@ -208,8 +214,9 @@ class PreprocessBRAPHINData:
             )
 
         tr = float(self.config.tr)
-        X, Y, Z, T = fmri_data.shape
-        n_slices = Z
+        slice_axis = self.config.slice_axis  # 0, 1, or 2
+        T = fmri_data.shape[3]
+        n_slices = fmri_data.shape[slice_axis]
 
         # Build per-slice acquisition times (seconds within one TR)
         if self.config.slice_order == "sequential":
@@ -248,12 +255,20 @@ class PreprocessBRAPHINData:
             hi = np.minimum(lo + 1, T - 1)
             alpha = frac - lo                     # interpolation weight toward hi
 
-            # Vectorised across X x Y voxels in this slice
-            slice_data = fmri_data[:, :, z, :]   # (X, Y, T)
-            corrected[:, :, z, :] = (
-                (1.0 - alpha) * slice_data[:, :, lo] +
-                alpha * slice_data[:, :, hi]
+            # Extract the z-th slice along slice_axis, keeping the time axis last.
+            # np.take returns an array with slice_axis removed; shape e.g. (X, Y, T)
+            # for slice_axis=2, or (Y, Z, T) for slice_axis=0.
+            slice_data = np.take(fmri_data, z, axis=slice_axis)  # (...spatial..., T)
+
+            interpolated = (
+                (1.0 - alpha) * slice_data[..., lo] +
+                alpha * slice_data[..., hi]
             )
+
+            # Write back using a dynamic index tuple
+            idx = [slice(None)] * 4
+            idx[slice_axis] = z
+            corrected[tuple(idx)] = interpolated
 
         return corrected.astype(np.float32)
 
@@ -266,59 +281,79 @@ class PreprocessBRAPHINData:
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Realigns each volume to the first volume (volume 0) using 6-parameter
-        rigid-body registration (3 translations + 3 rotations).
+        rigid-body registration (3 translations + 3 rotations) in world (mm)
+        space.
 
         Algorithm:
+        - The NIfTI affine (voxel→world mapping) is used to parameterise the
+          rigid-body motion in physical mm space.  Translations are in mm;
+          rotations are in radians.
         - For each volume t >= 1, scipy.optimize.minimize (Powell's method) finds
           the parameters [tx, ty, tz, rx, ry, rz] that minimise the sum of
           squared voxel-wise differences between the transformed volume and the
           reference.
-        - The affine transform is applied with scipy.ndimage.affine_transform
-          (linear interpolation, rotation about the volume centre).
+        - The forward world-space transform is:
+              T_world = T_translation @ R_z @ R_y @ R_x
+          scipy.ndimage.affine_transform needs the output→input mapping in voxel
+          space, i.e. the composed inverse:
+              T_map = affine_inv @ inv(T_world) @ affine
+        - Rotation is applied about the world-space volume centre.
 
         Returns:
         - corrected: float32 ndarray (X, Y, Z, T)
         - motion_params: float64 ndarray (T, 6)
-          columns: [tx_vox, ty_vox, tz_vox, rx_rad, ry_rad, rz_rad]
-
-        Note on convention:
-        - scipy.ndimage.affine_transform expects the matrix to map output->input
-          coordinates (i.e. the inverse of the physical forward transform).
-        - The optimiser therefore converges to the *inverse* rigid-body parameters.
-        - As a result, motion_params reflect the transformation applied to bring
-          each volume into reference space, not the physical head displacement.
-          They should not be interpreted directly as head motion for
-          quality-control purposes without sign-reversal.
+          columns: [tx_mm, ty_mm, tz_mm, rx_rad, ry_rad, rz_rad]
+          (world-space rigid-body parameters mapping moving→reference)
         """
         from scipy.ndimage import affine_transform
         from scipy.optimize import minimize
 
         X, Y, Z, T = fmri_data.shape
-        center = np.array([X / 2.0, Y / 2.0, Z / 2.0])
+
+        # NIfTI affine: maps voxel indices → world coordinates (mm)
+        affine = self.input_bundle.fmri_image.affine.astype(np.float64)
+        affine_inv = np.linalg.inv(affine)
+
+        # World-space centre of the volume (mm)
+        vox_center = np.array([X / 2.0, Y / 2.0, Z / 2.0, 1.0])
+        world_center = affine @ vox_center  # homogeneous
+
         reference = fmri_data[..., 0].astype(np.float64)
 
         motion_params = np.zeros((T, 6), dtype=np.float64)
         corrected = np.array(fmri_data, copy=True, dtype=np.float32)
 
-        def _rotation_matrix(rx: float, ry: float, rz: float) -> np.ndarray:
-            """Compose Rz @ Ry @ Rx rotation matrix."""
+        def _build_T_world(tx: float, ty: float, tz: float,
+                           rx: float, ry: float, rz: float) -> np.ndarray:
+            """Build 4×4 world-space rigid-body forward transform.
+
+            Rotation is applied about the world-space volume centre, then the
+            translation is added.  Order: R_z @ R_y @ R_x (X applied first).
+            """
             cx, sx = np.cos(rx), np.sin(rx)
             cy, sy = np.cos(ry), np.sin(ry)
             cz, sz = np.cos(rz), np.sin(rz)
             Rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
             Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
             Rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
-            return Rz @ Ry @ Rx
+            R = Rz @ Ry @ Rx  # 3×3 rotation
+
+            # 4×4 homogeneous: rotate about world centre, then translate
+            wc = world_center[:3]
+            T_world = np.eye(4)
+            T_world[:3, :3] = R
+            T_world[:3, 3] = wc - R @ wc + np.array([tx, ty, tz])
+            return T_world
 
         def _cost(params: np.ndarray, moving: np.ndarray) -> float:
-            tx, ty, tz, rx, ry, rz = params
-            R = _rotation_matrix(rx, ry, rz)
-            # Rotate around centre then translate
-            offset = center - R @ center + np.array([tx, ty, tz])
-            # NOTE: affine_transform maps output->input coords (inverse transform);
-            # see docstring for the implication on motion_params interpretation.
+            T_world = _build_T_world(*params)
+            # scipy.ndimage.affine_transform requires output→input voxel mapping:
+            #   T_map = affine_inv @ inv(T_world) @ affine
+            T_map = affine_inv @ np.linalg.inv(T_world) @ affine
+            matrix_3x3 = T_map[:3, :3]
+            offset_3 = T_map[:3, 3]
             transformed = affine_transform(
-                moving, R, offset=offset,
+                moving, matrix_3x3, offset=offset_3,
                 order=1, mode="constant", cval=0.0,
             )
             diff = transformed - reference
@@ -336,11 +371,10 @@ class PreprocessBRAPHINData:
             params = result.x
             motion_params[t] = params
 
-            tx, ty, tz, rx, ry, rz = params
-            R = _rotation_matrix(rx, ry, rz)
-            offset = center - R @ center + np.array([tx, ty, tz])
+            T_world = _build_T_world(*params)
+            T_map = affine_inv @ np.linalg.inv(T_world) @ affine
             corrected[..., t] = affine_transform(
-                moving, R, offset=offset,
+                moving, T_map[:3, :3], offset=T_map[:3, 3],
                 order=1, mode="constant", cval=0.0,
             ).astype(np.float32)
 
@@ -522,7 +556,7 @@ class PreprocessBRAPHINData:
             "num_timepoints": int(fmri_data.shape[3]),
             "voxel_time_series_shape": tuple(voxel_time_series.shape),
             "non_finite_values_replaced": replaced_values,
-            "normalization_applied": self.config.apply_normalization,
+            "voxel_zscore_applied": self.config.apply_voxel_zscore,
             "motion_correction_applied": self.config.apply_motion_correction,
             "slice_timing_applied": self.config.apply_slice_timing,
             "outlier_detection_applied": self.config.apply_outlier_detection,
@@ -534,8 +568,8 @@ class PreprocessBRAPHINData:
                 "slice_timing_correction",
                 "motion_correction",
                 "outlier_detection_scrubbing",
-                "per_voxel_temporal_normalisation",
                 "spatial_smoothing",
+                "per_voxel_temporal_zscore",
             ],
         }
 
@@ -558,3 +592,33 @@ class PreprocessBRAPHINData:
             logger.info("Pending steps:")
             for step in bundle.pending_steps:
                 logger.info("  [pending] %s", step)
+
+
+# ---------------------------------------------------------------------------
+# Module-level utility
+# ---------------------------------------------------------------------------
+
+def get_motion_confounds(preprocess_bundle: BRAPHINPreprocessBundle) -> np.ndarray:
+    """
+    Return motion parameters suitable for confound regression.
+
+    The stored ``motion_params`` represent the rigid-body transform that
+    aligns each volume to the reference.  To regress out head-motion
+    artefacts, the *inverse* (negated) parameters are required.
+
+    Parameters
+    ----------
+    preprocess_bundle : BRAPHINPreprocessBundle
+
+    Returns
+    -------
+    ndarray (T, 6)
+        Motion parameters negated for use as confound regressors.
+        Columns: [-tx, -ty, -tz, -rx, -ry, -rz] in mm and radians.
+    """
+    if preprocess_bundle.motion_params is None:
+        raise PreprocessingError(
+            "No motion parameters available. "
+            "Run motion correction first (apply_motion_correction=True)."
+        )
+    return -preprocess_bundle.motion_params

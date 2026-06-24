@@ -10,7 +10,6 @@ from .tools import (
     compute_coherence,
     compute_corrected_cross_correlation,
     compute_cross_correlation,
-    compute_dwpli,
     compute_granger_causality,
     compute_imaginary_coherence,
     compute_lagged_coherence,
@@ -18,13 +17,9 @@ from .tools import (
     compute_partial_correlation,
     compute_pdc,
     compute_pearson_correlation,
-    compute_pli,
-    compute_plv,
-    compute_ppc,
     compute_psi,
     compute_sync_likelihood,
     compute_transfer_entropy,
-    compute_wpli,
     validate_connectivity_method,
 )
 
@@ -94,36 +89,6 @@ class PartialCorrelationConnectivityStrategy(ConnectivityStrategy):
         return "PartialCorrelationConnectivityStrategy()"
 
 
-class PLVConnectivityStrategy(ConnectivityStrategy):
-    """Connectivity strategy based on Phase Locking Value (PLV)."""
-
-    def compute(self, roi_time_series: np.ndarray) -> np.ndarray:
-        return compute_plv(roi_time_series)
-
-    def __repr__(self) -> str:
-        return "PLVConnectivityStrategy()"
-
-
-class PLIConnectivityStrategy(ConnectivityStrategy):
-    """Connectivity strategy based on Phase Lag Index (PLI)."""
-
-    def compute(self, roi_time_series: np.ndarray) -> np.ndarray:
-        return compute_pli(roi_time_series)
-
-    def __repr__(self) -> str:
-        return "PLIConnectivityStrategy()"
-
-
-class WPLIConnectivityStrategy(ConnectivityStrategy):
-    """Connectivity strategy based on Weighted Phase Lag Index (wPLI)."""
-
-    def compute(self, roi_time_series: np.ndarray) -> np.ndarray:
-        return compute_wpli(roi_time_series)
-
-    def __repr__(self) -> str:
-        return "WPLIConnectivityStrategy()"
-
-
 class CoherenceConnectivityStrategy(ConnectivityStrategy):
     """Connectivity strategy based on magnitude-squared coherence. Requires TR."""
 
@@ -168,26 +133,6 @@ class AECOrthConnectivityStrategy(ConnectivityStrategy):
 
     def __repr__(self) -> str:
         return "AECOrthConnectivityStrategy()"
-
-
-class DWPLIConnectivityStrategy(ConnectivityStrategy):
-    """Connectivity strategy based on Debiased Weighted Phase Lag Index."""
-
-    def compute(self, roi_time_series: np.ndarray) -> np.ndarray:
-        return compute_dwpli(roi_time_series)
-
-    def __repr__(self) -> str:
-        return "DWPLIConnectivityStrategy()"
-
-
-class PPCConnectivityStrategy(ConnectivityStrategy):
-    """Connectivity strategy based on Pairwise Phase Consistency."""
-
-    def compute(self, roi_time_series: np.ndarray) -> np.ndarray:
-        return compute_ppc(roi_time_series)
-
-    def __repr__(self) -> str:
-        return "PPCConnectivityStrategy()"
 
 
 class MutualInformationConnectivityStrategy(ConnectivityStrategy):
@@ -280,8 +225,7 @@ def get_connectivity_strategy(method: str, tr: Optional[float] = None,
 
     Undirected (no TR):
         pearson_correlation, cross_correlation, corr_cross_correlation,
-        partial_correlation, plv, pli, wpli, aec, aec_orth, dwpli, ppc,
-        mutual_information, sync_likelihood
+        partial_correlation, aec, aec_orth, mutual_information, sync_likelihood
 
     Undirected (TR required):
         coherence, imag_coherence, lagged_coherence
@@ -317,13 +261,8 @@ def get_connectivity_strategy(method: str, tr: Optional[float] = None,
         "cross_correlation":     CrossCorrelationConnectivityStrategy,
         "corr_cross_correlation": CorrectedCrossCorrelationConnectivityStrategy,
         "partial_correlation":   PartialCorrelationConnectivityStrategy,
-        "plv":                   PLVConnectivityStrategy,
-        "pli":                   PLIConnectivityStrategy,
-        "wpli":                  WPLIConnectivityStrategy,
         "aec":                   AECConnectivityStrategy,
         "aec_orth":              AECOrthConnectivityStrategy,
-        "dwpli":                 DWPLIConnectivityStrategy,
-        "ppc":                   PPCConnectivityStrategy,
         "mutual_information":    MutualInformationConnectivityStrategy,
         "sync_likelihood":       SyncLikelihoodConnectivityStrategy,
         "transfer_entropy":      TransferEntropyConnectivityStrategy,

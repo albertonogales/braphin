@@ -7,53 +7,238 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 
-**BRAPHIN** is a Python library for analysing resting-state functional MRI (fMRI) data through a brain-connectivity graph pipeline. It extends [EEGraph](https://github.com/ufvceiec/EEGRAPH) — originally designed for EEG — to support fMRI, providing a unified interface for both modalities and enabling downstream Graph Neural Network (GNN) analyses such as Parkinson's disease classification.
+**BRAPHIN** is a Python library that turns fMRI brain scans into functional connectivity graphs — ready for machine learning and graph neural network analysis.
 
 ---
 
-## Features
+## What it does
 
-- **Full fMRI pipeline**: NIfTI loading → preprocessing (slice timing, motion correction, outlier detection, normalisation, smoothing) → denoising (confound regression, scrubbing, bandpass) → atlas parcellation → ROI time-series extraction → functional connectivity
-- **Three connectivity measures**: Pearson correlation, cross-correlation, corrected cross-correlation
-- **Four bundled atlases**: AAL (116 ROIs), Schaefer 100 / 200 / 400
-- **Automatic atlas resampling** to the subject's fMRI space via nearest-neighbour interpolation
-- **ROI centroid caching** in world coordinates (JSON)
-- **GNN-ready output**: NetworkX graphs with node positions, compatible with PyTorch Geometric
-- **Unified EEG + fMRI API** through `eegraph.Graph`
-- **387 passing unit and integration tests**
+- **Reads NIfTI fMRI files** — the standard brain scan file format (`.nii` / `.nii.gz`)
+- **Cleans and denoises the data** — removes invalid values, corrects for head movement, applies bandpass filtering
+- **Parcellates the brain using an atlas** — divides the brain into regions (ROIs) and extracts the average signal from each region over time
+- **Computes functional connectivity** — measures how similarly each pair of brain regions behaves over time (15 methods available)
+- **Outputs a NetworkX graph** — nodes are brain regions, edges are connectivity weights, ready for GNN classification
 
 ---
 
-## Pipeline overview
+## Quick start
 
+The simplest way to run the full pipeline is the four-line `Graph` API:
+
+```python
+from braphin import Graph
+
+g = Graph()
+g.load_data("sub-01_bold.nii.gz", modality="fmri")
+graph, matrix = g.modelate(connectivity="pearson_correlation", window_size=None)
+# matrix — NumPy array (N_regions × N_regions) of connectivity weights
+# graph  — NetworkX graph with brain region nodes
 ```
-NIfTI file (.nii / .nii.gz)
-      │
-      ▼
- InputMRIData          ← validates format, loads auxiliaries (confounds, events)
-      │
-      ▼
- PreprocessMRIData     ← NaN/inf cleaning, slice-timing correction, motion correction,
-                          outlier detection, per-voxel temporal z-score normalisation, spatial smoothing
-      │
-      ▼
- DenoiseMRIData        ← confound regression, scrubbing, bandpass filtering
-      │
-      ▼
- TransformMRIData      ← atlas parcellation, ROI mean time-series extraction
-      │
-      ▼
- ModelMRIConnectivity  ← connectivity matrix (Pearson / cross-corr)
-      │
-      ▼
- NetworkX Graph        ← nodes = ROIs, edges = connectivity weights
+
+---
+
+## Step-by-step pipeline
+
+For more control, you can run each stage individually. Each stage returns a bundle you can inspect before passing to the next step.
+
+```python
+from braphin import (
+    InputfMRIData, PreprocessBRAPHINData, DenoiseBRAPHINData,
+    TransformBRAPHINData, ModelBRAPHINConnectivityData,
+    PreprocessConfig, DenoiseConfig, AtlasConfig, ConnectivityConfig,
+)
+
+# Stage 1 — Load the NIfTI file (and any confound files)
+input_bundle = InputfMRIData(
+    "sub-01_task-rest_bold.nii.gz",
+    auxiliary_paths=["sub-01_task-rest_confounds_timeseries.tsv"],
+).load()
+
+# Stage 2 — Clean and normalise the data
+pp_bundle = PreprocessBRAPHINData(
+    input_bundle,
+    PreprocessConfig(apply_voxel_zscore=True),
+).run()
+
+# Stage 3 — Remove the influence of head movement from the signal
+dn_bundle = DenoiseBRAPHINData(
+    pp_bundle,
+    DenoiseConfig(regress_confounds=True),
+).run()
+
+# Stage 4 — Divide the brain into 116 regions using the AAL atlas
+tx_bundle = TransformBRAPHINData(
+    dn_bundle,
+    config=AtlasConfig(atlas_name="aal"),
+).run()
+
+# Stage 5 — Compute Pearson correlation between every pair of regions
+conn_bundle = ModelBRAPHINConnectivityData(
+    tx_bundle,
+    ConnectivityConfig(method="pearson_correlation", threshold=0.3),
+).run()
+
+matrix = conn_bundle.connectivity_matrix   # NumPy array, shape (116, 116)
+graph  = conn_bundle.graph                 # NetworkX graph
 ```
+
+---
+
+## Graph visualisation
+
+```python
+from braphin import build_fmri_graph, visualize_html, visualize_png
+
+G = build_fmri_graph(
+    connectivity_matrix=conn_bundle.connectivity_matrix,
+    roi_labels=conn_bundle.roi_labels,
+    roi_centroids_3d=conn_bundle.roi_centroids_3d,
+    projection="axial",   # "axial", "coronal", or "sagittal"
+)
+
+visualize_html(G, "my_subject")   # saves my_subject_plot.html (interactive)
+visualize_png(G, "my_subject")    # saves my_subject.png
+```
+
+---
+
+## Supported atlases
+
+An atlas is a brain map that divides the brain into named regions. BRAPHIN includes four bundled atlases and also supports custom atlases.
+
+| Name | ROIs | Type | Description |
+|---|---|---|---|
+| `aal` | 116 | Anatomical | Automated Anatomical Labeling — classic anatomical parcellation |
+| `schaefer_100` | 100 | Functional | Schaefer 2018 functional atlas |
+| `schaefer_200` | 200 | Functional | Schaefer 2018 — medium granularity |
+| `schaefer_400` | 400 | Functional | Schaefer 2018 — high granularity |
+
+Custom atlases: `AtlasConfig(atlas_path="my_atlas.nii.gz")` or pass a NIfTI image or NumPy array directly to `TransformBRAPHINData`.
+
+---
+
+## Connectivity methods
+
+Functional connectivity measures how similar two brain regions' activity patterns are over time. BRAPHIN supports 15 methods.
+
+| Method key | Description | Symmetric | TR required |
+|---|---|---|---|
+| `pearson_correlation` | Linear correlation between two region signals | Yes | No |
+| `partial_correlation` | Correlation after removing shared influence of all other regions | Yes | No |
+| `cross_correlation` | Correlation at the lag that maximises similarity (up to 10% of signal length) | No | No |
+| `corr_cross_correlation` | Signed cross-correlation: positive lag minus negative lag | No | No |
+| `coherence` | Frequency-domain similarity (averaged over frequencies) | Yes | Yes |
+| `imag_coherence` | Imaginary part of coherence — less sensitive to shared noise | No | Yes |
+| `lagged_coherence` | Coherence at non-zero phase lag only | Yes | Yes |
+| `aec` | Amplitude Envelope Correlation — similarity of signal power envelopes | Yes | No |
+| `aec_orth` | Orthogonalized AEC — removes spurious correlation from signal leakage | Yes | No |
+| `mutual_information` | Non-linear dependency between two region signals | Yes | No |
+| `sync_likelihood` | Generalised synchronisation measure | Yes | No |
+| `granger_causality` | Whether signal in region A helps predict region B | No (directed) | No |
+| `transfer_entropy` | Information flow from one region to another | No (directed) | No |
+| `pdc` | Partial Directed Coherence — directed frequency-domain influence | No (directed) | Yes |
+| `psi` | Phase Slope Index — which signal leads in phase | No (directed) | Yes |
+
+> **TR** is the time between brain scans (in seconds). It is required by spectral methods that work in the frequency domain.
+
+---
+
+## Frequency bands
+
+BRAPHIN provides predefined BOLD fMRI frequency bands. These are different from EEG bands and are based on Zuo et al. (2010).
+
+```python
+from braphin import FMRI_BANDS, compute_all_bands_connectivity
+
+# FMRI_BANDS = {
+#     "slow5":     (0.010, 0.027),   # Hz
+#     "slow4":     (0.027, 0.073),
+#     "slow3":     (0.073, 0.167),
+#     "broadband": (0.010, 0.100),
+# }
+
+# Compute connectivity separately for each frequency band
+band_results = compute_all_bands_connectivity(
+    roi_time_series=tx_bundle.roi_time_series,
+    tr=2.0,
+    method="pearson_correlation",
+)
+# Returns a dict: {"slow5": ndarray, "slow4": ndarray, "slow3": ndarray, "broadband": ndarray}
+```
+
+---
+
+## Motion confounds
+
+Head movement during scanning introduces noise. After running motion correction, use `get_motion_confounds()` to get the movement parameters in the right format for denoising.
+
+```python
+from braphin import get_motion_confounds
+
+confounds = get_motion_confounds(pp_bundle)   # shape (T, 6) — ready for confound regression
+```
+
+The six columns are translation and rotation parameters [tx, ty, tz, rx, ry, rz]. BRAPHIN applies the necessary sign convention automatically.
+
+---
+
+## Configuration reference
+
+All pipeline stages are configured with simple dataclasses. The most common options are shown below.
+
+```python
+PreprocessConfig(
+    apply_voxel_zscore      = True,    # normalise each voxel's signal over time (recommended)
+    apply_motion_correction = False,   # rigid-body alignment to the first scan volume
+    apply_smoothing         = False,   # spatial smoothing (Gaussian kernel)
+    smoothing_fwhm          = 6.0,     # smoothing width in mm
+    apply_slice_timing      = False,   # correct for the fact that slices are scanned at different times
+    tr                      = None,    # time between scans in seconds (required for slice timing)
+)
+
+DenoiseConfig(
+    regress_confounds = True,    # remove the influence of confound signals (e.g. head movement)
+    apply_bandpass    = False,   # keep only signals in a frequency range
+    bandpass_low      = 0.008,   # lower frequency cutoff in Hz
+    bandpass_high     = 0.1,     # upper frequency cutoff in Hz (Biswal 1995 resting-state band)
+    tr                = None,    # time between scans in seconds (required for bandpass)
+    apply_scrubbing   = False,   # interpolate or remove scan volumes with excessive motion
+)
+
+AtlasConfig(
+    atlas_name = "aal",          # bundled atlas: "aal", "schaefer_100", "schaefer_200", "schaefer_400"
+    atlas_path = None,           # path to a custom NIfTI atlas file
+    roi_labels = None,           # optional list of custom region names
+)
+
+ConnectivityConfig(
+    method      = "pearson_correlation",   # any method key from the table above
+    threshold   = None,                    # keep only edges where |weight| >= threshold
+    window_size = None,                    # None = static connectivity across the whole scan
+)
+```
+
+<details>
+<summary>Less common options</summary>
+
+```python
+PreprocessConfig(
+    slice_order             = "sequential",  # "sequential" or "interleaved"
+    slice_timing_ref_slice  = 0,             # reference slice index for slice-timing correction
+    slice_axis              = 2,             # which axis holds the slices (0=X, 1=Y, 2=Z)
+    apply_outlier_detection = False,         # DVARS-based outlier detection
+    outlier_threshold_dvars = 1.5,           # IQR multiplier for the DVARS threshold
+    scrubbing_strategy      = "interpolate", # "interpolate" or "mark"
+)
+```
+
+</details>
 
 ---
 
 ## Installation
 
-### Core library (fMRI only)
+### Core library
 
 ```bash
 pip install -r requirements.txt
@@ -71,7 +256,7 @@ pip install -r requirements-eeg.txt
 pip install -r requirements-gnn.txt
 ```
 
-### From source (editable install)
+### From source
 
 ```bash
 git clone https://github.com/<your-org>/braphin.git
@@ -81,147 +266,10 @@ pip install -e .
 
 ---
 
-## Quick start — fMRI
-
-```python
-from braphin import (
-    InputMRIData, PreprocessMRIData, DenoiseMRIData,
-    TransformMRIData, ModelMRIConnectivityData,
-    PreprocessConfig, DenoiseConfig, AtlasConfig, ConnectivityConfig,
-)
-
-# 1. Load
-input_bundle = InputMRIData(
-    "sub-01_task-rest_bold.nii.gz",
-    auxiliary_paths=["sub-01_task-rest_confounds_timeseries.tsv"],
-).load()
-
-# 2. Preprocess
-pp_bundle = PreprocessMRIData(
-    input_bundle,
-    PreprocessConfig(apply_normalization=True),
-).run()
-
-# 3. Denoise — regress out motion confounds
-dn_bundle = DenoiseMRIData(
-    pp_bundle,
-    DenoiseConfig(regress_confounds=True),
-).run()
-
-# 4. Parcellate with AAL atlas (116 ROIs)
-tx_bundle = TransformMRIData(
-    dn_bundle,
-    config=AtlasConfig(atlas_name="aal"),
-).run()
-
-# 5. Compute Pearson functional connectivity
-conn_bundle = ModelMRIConnectivityData(
-    tx_bundle,
-    ConnectivityConfig(method="pearson_correlation", threshold=0.3),
-).run()
-
-matrix = conn_bundle.connectivity_matrix   # shape (116, 116)
-graph  = conn_bundle                       # NetworkX graph built downstream
-```
-
----
-
-## Quick start — unified EEG + fMRI API
-
-```python
-from eegraph.graph import Graph
-
-# fMRI
-G = Graph()
-G.load_data("sub-01_bold.nii.gz", modality="fmri")
-graph, matrix = G.modelate(
-    window_size=None,
-    connectivity="pearson_correlation",
-    threshold=0.3,
-    atlas_config=AtlasConfig(atlas_name="schaefer_100"),
-)
-
-# EEG (unchanged from original EEGraph)
-G = Graph()
-G.load_data("sub-01_eeg.edf", modality="eeg")
-graph, matrix = G.modelate(window_size=2, connectivity="pearson_correlation")
-```
-
----
-
-## Supported atlases
-
-| Name | ROIs | Type | Description |
-|---|---|---|---|
-| `aal` | 116 | Anatomical | Automated Anatomical Labeling — classic anatomical parcellation |
-| `schaefer_100` | 100 | Functional | Schaefer 2018 functional atlas |
-| `schaefer_200` | 200 | Functional | Schaefer 2018 — medium granularity |
-| `schaefer_400` | 400 | Functional | Schaefer 2018 — high granularity |
-
-Custom atlases are also supported via `AtlasConfig(atlas_path="my_atlas.nii.gz")` or by passing a NIfTI image or NumPy array directly to `TransformMRIData`.
-
----
-
-## Connectivity methods
-
-| Method key | Description | Symmetric |
-|---|---|---|
-| `pearson_correlation` | Pearson r between ROI time series | Yes |
-| `cross_correlation` | Normalised cross-correlation (lag 0 – 10%) | No |
-| `corr_cross_correlation` | Corrected cross-correlation: `Rxy(+lag) − Rxy(−lag)` | No (antisymmetric) |
-
----
-
-## Configuration reference
-
-All pipeline stages are controlled by dataclasses in `braphin.config`:
-
-```python
-PreprocessConfig(
-    apply_slice_timing      = False,   # linear interpolation per slice to reference time
-    tr                      = None,    # repetition time in seconds (required for slice timing)
-    slice_order             = "sequential",   # "sequential" or "interleaved"
-    slice_timing_ref_slice  = 0,       # reference slice index
-    apply_motion_correction = False,   # rigid-body realignment to volume 0 (Powell optimisation)
-    apply_outlier_detection = False,   # DVARS-based outlier detection
-    outlier_threshold_dvars = 1.5,     # IQR multiplier for DVARS threshold
-    scrubbing_strategy      = "interpolate",  # "interpolate" or "mark"
-    apply_normalization     = True,    # per-voxel temporal z-score normalisation
-    apply_smoothing         = False,   # isotropic Gaussian spatial smoothing
-    smoothing_fwhm          = 6.0,     # FWHM in mm
-)
-
-DenoiseConfig(
-    regress_confounds = True,    # least-squares confound regression
-    apply_scrubbing   = False,   # interpolate outlier volumes (uses preprocess outlier_mask if available)
-    apply_bandpass    = False,   # zero-phase 5th-order Butterworth bandpass filter
-    bandpass_low      = 0.008,   # Hz — lower cutoff
-    bandpass_high     = 0.1,     # Hz — upper cutoff (Biswal 1995: 0.008–0.1 Hz)
-    tr                = None,    # repetition time in seconds (required for bandpass)
-)
-
-AtlasConfig(
-    atlas_name = "aal",          # one of the bundled atlas names
-    atlas_path = None,           # path to a custom NIfTI atlas
-    roi_labels = None,           # optional list of custom ROI names
-)
-
-ConnectivityConfig(
-    method      = "pearson_correlation",
-    threshold   = None,          # absolute threshold (keeps |r| >= threshold)
-    window_size = None,          # None = static; float (seconds) = windowed dynamic (planned)
-)
-```
-
----
-
 ## Running the tests
 
 ```bash
-# Install dev dependencies
 pip install -r requirements-dev.txt
-
-# Run the full test suite (387 tests)
 pytest
 
 # With coverage report
@@ -234,45 +282,18 @@ pytest --cov=braphin --cov-report=term-missing
 
 ```
 braphin-main/
-├── braphin/                  # Core fMRI library
-│   ├── config.py              # Configuration dataclasses
-│   ├── importMRIData.py       # Stage 1: NIfTI loading
+├── braphin/
+│   ├── config.py              # Configuration dataclasses (PreprocessConfig, etc.)
+│   ├── importBRAPHINData.py   # Stage 1: NIfTI loading
 │   ├── preprocess.py          # Stage 2: preprocessing
 │   ├── denoise.py             # Stage 3: denoising
 │   ├── transform.py           # Stage 4: atlas parcellation
-│   ├── modelateData.py        # Stage 5: connectivity
-│   ├── strategy.py            # Connectivity strategy pattern
-│   ├── tools.py               # Connectivity measures
-│   ├── atlas.py               # Atlas registry and helpers
-│   ├── exceptions.py          # Exception hierarchy
-│   ├── io/
-│   │   ├── nifti.py           # NIfTI I/O
-│   │   └── tabular.py         # CSV / TSV / NPY I/O
-│   ├── atlases/               # Bundled atlas NIfTI files
-│   └── atlas_centroids/       # Pre-computed centroid JSON files
-├── eegraph/                   # Unified EEG + fMRI API (extends original EEGraph)
-├── tests/                     # Pytest test suite (387 tests)
+│   ├── connectivity.py        # Stage 5: connectivity
+│   └── visualize.py           # build_fmri_graph, visualize_html, visualize_png
+├── eegraph/                   # Unified EEG + fMRI API (EEGraph dependency)
+├── tests/                     # Pytest test suite (459 tests)
 ├── Examples/                  # Jupyter notebook tutorials
-├── requirements.txt           # Core dependencies
-├── requirements-eeg.txt       # EEG optional dependencies
-├── requirements-gnn.txt       # GNN optional dependencies
-├── requirements-dev.txt       # Development dependencies
-└── pyproject.toml             # Package metadata
-```
-
----
-
-## Exception hierarchy
-
-```
-BRAPHINError
-├── MRIInputError       — file not found, wrong extension
-├── MRIFormatError      — wrong NIfTI dimensions
-├── AtlasError          — unsupported atlas, shape mismatch
-├── PreprocessingError  — invalid bundle, normalisation failure
-├── DenoisingError      — confound shape mismatch
-├── TransformationError — atlas/fMRI space mismatch, ROI extraction failure
-└── ConnectivityError   — unsupported method, matrix computation failure
+└── pyproject.toml
 ```
 
 ---
@@ -295,15 +316,11 @@ If you use BRAPHIN in your research, please cite:
 
 ## Known limitations
 
-The following are acknowledged limitations of the current release:
-
-- **No global signal regression (GSR).** GSR is a common preprocessing step in resting-state fMRI but is not yet implemented. Users comparing results with HCP pipelines should be aware of this difference.
-- **No partial correlation / precision matrix.** Only full Pearson correlation, normalised cross-correlation, and corrected cross-correlation are supported. Regularised partial correlation (e.g. graphical lasso) is a planned future addition.
-- **Cross-correlation is O(N²).** The cross-correlation and corrected cross-correlation strategies iterate over all ROI pairs in pure Python. For large atlases (Schaefer 400) this is ~80,000 iterations per call; vectorisation with NumPy/SciPy FFT is planned.
-- **Motion correction convention.** `scipy.ndimage.affine_transform` maps output→input coordinates. The estimated `motion_params` therefore represent the *inverse* rigid-body transform, not physical head displacement. They should not be used directly as quality-control motion parameters without sign-reversal.
-- **Slice-timing uses first-order (linear) interpolation.** This is acceptable for typical TR ≥ 1 s, but higher-order methods may be preferable for sub-second TRs.
-- **`BRAPHINConfig` is not consumed by the pipeline.** The convenience aggregator dataclass is exported for user-side configuration management but is not yet accepted as an input to any pipeline stage.
-- **No real-data validation.** The test suite uses synthetic NumPy data generated at runtime. Validation against a reference neuroimaging dataset (e.g. OpenNeuro ds000031) is planned.
+- **No global signal regression (GSR).** A common preprocessing step in resting-state fMRI pipelines; not yet implemented.
+- **Cross-correlation is slow for large atlases.** The cross-correlation methods iterate over all region pairs in Python. For Schaefer 400 this is ~80,000 iterations; a faster vectorised version is planned.
+- **Motion correction convention.** `motion_params` stores world-space rigid-body parameters. Use `get_motion_confounds(bundle)` to obtain the sign-corrected version for regression.
+- **Slice-timing uses linear interpolation.** Acceptable for TR ≥ 1 s; higher-order methods may be preferable for sub-second TRs.
+- **No real-data validation.** The test suite uses synthetic data only. Validation against a public neuroimaging dataset is planned.
 
 ---
 

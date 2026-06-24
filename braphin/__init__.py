@@ -1,17 +1,53 @@
 """
 BRAPHIN
 
-An fMRI functional connectivity pipeline extending EEGraph.
-Transforms a raw 4-D BOLD NIfTI image into a NetworkX graph whose nodes are
-brain regions of interest (ROIs) and whose edges are weighted by pairwise
-connectivity.
+A multimodal brain connectivity library extending EEGraph.
 
-Pipeline stages:
-    InputBRAPHINData       -> BRAPHINInputBundle
+Supported modalities
+--------------------
+fMRI (NIfTI)
+    Five-stage pipeline: Input → Preprocess → Denoise → Transform → Connectivity.
+    Connectivity measures: pearson_correlation, partial_correlation, cross_correlation,
+    corr_cross_correlation, coherence, imag_coherence, lagged_coherence, aec, aec_orth,
+    mutual_information, sync_likelihood, granger_causality, transfer_entropy, pdc, psi.
+
+EEG
+    Full EEGraph pipeline accessed via the unified Graph class.
+    Connectivity measures: cross_correlation, pearson_correlation, squared_coherence,
+    imag_coherence, corr_cross_correlation, wpli, plv, pli, pli_bands, dtf,
+    power_spectrum, spectral_entropy, shannon_entropy.
+
+EEG utilities
+-------------
+    load_deap_dat  — load a DEAP .dat file and return EEG data as an MNE object.
+
+Unified entry point (both modalities)
+--------------------------------------
+    from braphin import Graph
+
+    # EEG
+    g = Graph()
+    g.load_data("subject.edf", modality="eeg")
+    G, matrix = g.modelate(window_size=None, connectivity="plv", bands=["alpha"])
+
+    # fMRI
+    g = Graph()
+    g.load_data("subject.nii.gz", modality="fmri")
+    G, matrix = g.modelate(window_size=None, connectivity="pearson_correlation")
+
+fMRI pipeline stages
+--------------------
+    InputfMRIData          -> BRAPHINInputBundle
     PreprocessBRAPHINData  -> BRAPHINPreprocessBundle
     DenoiseBRAPHINData     -> BRAPHINDenoiseBundle
     TransformBRAPHINData   -> BRAPHINTransformBundle
     ModelBRAPHINConnectivityData -> BRAPHINConnectivityBundle
+
+EEG pipeline stages
+-------------------
+    InputEEGData           -> EEGInputBundle
+    (windowing)            -> per-window connectivity matrices
+    ModelData              -> mean connectivity matrix + NetworkX graph
 """
 
 __version__ = "1.0.0"
@@ -26,8 +62,10 @@ from .config import (
 )
 from .connectivity import BRAPHINConnectivityBundle, ModelBRAPHINConnectivityData
 from .denoise import DenoiseBRAPHINData, BRAPHINDenoiseBundle
-from .importBRAPHINData import InputBRAPHINData, BRAPHINInputBundle
-from .preprocess import BRAPHINPreprocessBundle, PreprocessBRAPHINData
+from .importBRAPHINData import InputfMRIData, BRAPHINInputBundle
+from .importBRAPHINData import InputBRAPHINData  # backward-compat alias
+from .importEEGData import InputEEGData, EEGInputBundle
+from .preprocess import BRAPHINPreprocessBundle, PreprocessBRAPHINData, get_motion_confounds
 from .strategy import (
     ConnectivityStrategy,
     PearsonConnectivityStrategy,
@@ -48,7 +86,41 @@ from .graph_metrics import (
     compute_rich_club_coefficient,
 )
 from .transform import BRAPHINTransformBundle, TransformBRAPHINData, build_synthetic_atlas
-from .visualize import visualize_html, visualize_png
+from .visualize import visualize_html, visualize_png, build_fmri_graph
+from .bands import (
+    FMRI_BANDS,
+    bandpass_roi_time_series,
+    compute_band_connectivity,
+    compute_all_bands_connectivity,
+)
+from .model import ModelMRIData
+
+# EEG utilities
+from eegraph.io import load_deap_dat
+
+# Unified Graph class — BRAPHINGraph subclasses eegraph.Graph.
+# Dependency is strictly one-way: braphin → eegraph.
+# modality="eeg"  → EEGraph pipeline (PLV, PLI, wPLI, DTF, …)
+# modality="fmri" → BRAPHIN pipeline (Pearson, Granger, AEC, …)
+from .graph import BRAPHINGraph
+Graph = BRAPHINGraph  # convenience alias
+
+# ── Standardised connectivity measure registries ──────────────────────────────
+# fMRI measures  (braphin pipeline)
+FMRI_CONNECTIVITY_MEASURES = CONNECTIVITY_MEASURES   # {name: description}
+
+# EEG measures  (EEGraph pipeline)
+from eegraph.tools import connectivity_measures as EEG_CONNECTIVITY_MEASURES  # {name: class_name}
+
+
+def list_fmri_connectivity_measures():
+    """Return the list of supported fMRI connectivity method names."""
+    return list(FMRI_CONNECTIVITY_MEASURES.keys())
+
+
+def list_eeg_connectivity_measures():
+    """Return the list of supported EEG connectivity method names."""
+    return list(EEG_CONNECTIVITY_MEASURES.keys())
 
 __all__ = [
     "InputConfig",
@@ -57,9 +129,13 @@ __all__ = [
     "AtlasConfig",
     "ConnectivityConfig",
     "BRAPHINConfig",
-    "InputBRAPHINData",
+    "InputfMRIData",
+    "InputBRAPHINData",   # backward-compat alias
+    "InputEEGData",
+    "EEGInputBundle",
     "BRAPHINInputBundle",
     "PreprocessBRAPHINData",
+    "get_motion_confounds",
     "BRAPHINPreprocessBundle",
     "DenoiseBRAPHINData",
     "BRAPHINDenoiseBundle",
@@ -83,4 +159,20 @@ __all__ = [
     "build_graph_from_matrix",
     "visualize_html",
     "visualize_png",
+    "build_fmri_graph",
+    "FMRI_BANDS",
+    "bandpass_roi_time_series",
+    "compute_band_connectivity",
+    "compute_all_bands_connectivity",
+    "ModelMRIData",
+    # EEG utilities
+    "load_deap_dat",
+    # Unified entry point (BRAPHINGraph exported as Graph for convenience)
+    "Graph",
+    "BRAPHINGraph",
+    # Standardised connectivity measure registries
+    "EEG_CONNECTIVITY_MEASURES",
+    "FMRI_CONNECTIVITY_MEASURES",
+    "list_eeg_connectivity_measures",
+    "list_fmri_connectivity_measures",
 ]

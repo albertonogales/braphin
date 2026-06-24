@@ -55,7 +55,7 @@ def _run_preprocess(arr=None, affine=None, **cfg_kwargs):
         apply_motion_correction=False,
         apply_slice_timing=False,
         apply_outlier_detection=False,
-        apply_normalization=False,
+        apply_voxel_zscore=False,
         apply_smoothing=False,
     )
     defaults.update(cfg_kwargs)   # caller's values win
@@ -364,7 +364,7 @@ def _make_preprocess_bundle(arr=None):
     ib = _make_input_bundle(arr)
     cfg = PreprocessConfig(
         apply_motion_correction=False, apply_slice_timing=False,
-        apply_outlier_detection=False, apply_normalization=False,
+        apply_outlier_detection=False, apply_voxel_zscore=False,
         apply_smoothing=False,
     )
     return PreprocessBRAPHINData(ib, cfg).run()
@@ -426,7 +426,7 @@ class TestBandpassFiltering:
             ib = _make_input_bundle(arr4d)
             pp = PreprocessBRAPHINData(ib, PreprocessConfig(
                 apply_motion_correction=False, apply_slice_timing=False,
-                apply_outlier_detection=False, apply_normalization=False,
+                apply_outlier_detection=False, apply_voxel_zscore=False,
                 apply_smoothing=False,
             )).run()
             cfg = DenoiseConfig(
@@ -493,7 +493,7 @@ class TestDenoiseScrubbing:
         ib = _make_input_bundle(arr)
         pp = PreprocessBRAPHINData(ib, PreprocessConfig(
             apply_motion_correction=False, apply_slice_timing=False,
-            apply_outlier_detection=True, apply_normalization=False,
+            apply_outlier_detection=True, apply_voxel_zscore=False,
             apply_smoothing=False, outlier_threshold_dvars=0.5,
         )).run()
         result = _run_denoise_from_preprocess(pp, apply_scrubbing=True)

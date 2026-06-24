@@ -6,10 +6,8 @@ Covers:
 - Cross-correlation: shape, no NaN
 - Corrected cross-correlation: Bug 4 fix — negative_lag reversal
 - Partial correlation: shape, symmetry, diagonal, range
-- PLV / PLI / wPLI: shape, symmetry, range
 - Coherence / imaginary coherence / lagged coherence: shape, range
 - AEC / AEC-c: shape, symmetry, range
-- dWPLI / PPC: shape, symmetry, range
 - Mutual Information: shape, symmetry, non-negative
 - Synchronisation Likelihood: shape, symmetry, range
 - Granger Causality: shape, non-negative, zero diagonal (directed)
@@ -19,6 +17,10 @@ Covers:
 - Threshold application
 - Method validation and alias resolution
 - Strategy factory
+
+Note: PLV / PLI / wPLI / dWPLI / PPC were removed from the fMRI pipeline
+(unreliable on raw BOLD signal due to insufficient temporal resolution).
+They remain available in EEGraph for EEG data via modality="eeg".
 """
 
 import numpy as np
@@ -31,21 +33,16 @@ from braphin.strategy import (
     CoherenceConnectivityStrategy,
     CorrectedCrossCorrelationConnectivityStrategy,
     CrossCorrelationConnectivityStrategy,
-    DWPLIConnectivityStrategy,
     GrangerCausalityConnectivityStrategy,
     ImaginaryCoherenceConnectivityStrategy,
     LaggedCoherenceConnectivityStrategy,
     MutualInformationConnectivityStrategy,
     PDCConnectivityStrategy,
-    PLIConnectivityStrategy,
-    PLVConnectivityStrategy,
-    PPCConnectivityStrategy,
     PSIConnectivityStrategy,
     PartialCorrelationConnectivityStrategy,
     PearsonConnectivityStrategy,
     SyncLikelihoodConnectivityStrategy,
     TransferEntropyConnectivityStrategy,
-    WPLIConnectivityStrategy,
     get_connectivity_strategy,
 )
 from braphin.tools import (
@@ -56,7 +53,6 @@ from braphin.tools import (
     compute_coherence,
     compute_corrected_cross_correlation,
     compute_cross_correlation,
-    compute_dwpli,
     compute_granger_causality,
     compute_imaginary_coherence,
     compute_lagged_coherence,
@@ -64,13 +60,9 @@ from braphin.tools import (
     compute_partial_correlation,
     compute_pdc,
     compute_pearson_correlation,
-    compute_pli,
-    compute_plv,
-    compute_ppc,
     compute_psi,
     compute_sync_likelihood,
     compute_transfer_entropy,
-    compute_wpli,
     list_connectivity_measures,
     validate_connectivity_method,
 )
@@ -351,137 +343,6 @@ def test_validate_method_alias_partial():
 
 
 # ---------------------------------------------------------------------------
-# PLV (Phase Locking Value)
-# ---------------------------------------------------------------------------
-
-def test_plv_shape(roi_ts):
-    m = compute_plv(roi_ts)
-    assert m.shape == (N, N)
-
-
-def test_plv_symmetric(roi_ts):
-    m = compute_plv(roi_ts)
-    np.testing.assert_allclose(m, m.T, atol=1e-5)
-
-
-def test_plv_diagonal_ones(roi_ts):
-    m = compute_plv(roi_ts)
-    np.testing.assert_allclose(np.diag(m), np.ones(N), atol=1e-5)
-
-
-def test_plv_range(roi_ts):
-    m = compute_plv(roi_ts)
-    assert np.all(m >= 0.0 - 1e-5)
-    assert np.all(m <= 1.0 + 1e-5)
-
-
-def test_plv_no_nan(roi_ts):
-    m = compute_plv(roi_ts)
-    assert not np.any(np.isnan(m))
-
-
-def test_plv_dtype(roi_ts):
-    m = compute_plv(roi_ts)
-    assert m.dtype == np.float32
-
-
-def test_get_strategy_plv():
-    s = get_connectivity_strategy("plv")
-    assert isinstance(s, PLVConnectivityStrategy)
-
-
-def test_validate_method_alias_plv():
-    assert validate_connectivity_method("phase locking value") == "plv"
-
-
-# ---------------------------------------------------------------------------
-# PLI (Phase Lag Index)
-# ---------------------------------------------------------------------------
-
-def test_pli_shape(roi_ts):
-    m = compute_pli(roi_ts)
-    assert m.shape == (N, N)
-
-
-def test_pli_symmetric(roi_ts):
-    m = compute_pli(roi_ts)
-    np.testing.assert_allclose(m, m.T, atol=1e-5)
-
-
-def test_pli_zero_diagonal(roi_ts):
-    m = compute_pli(roi_ts)
-    np.testing.assert_array_equal(np.diag(m), np.zeros(N))
-
-
-def test_pli_range(roi_ts):
-    m = compute_pli(roi_ts)
-    assert np.all(m >= 0.0 - 1e-5)
-    assert np.all(m <= 1.0 + 1e-5)
-
-
-def test_pli_no_nan(roi_ts):
-    m = compute_pli(roi_ts)
-    assert not np.any(np.isnan(m))
-
-
-def test_pli_dtype(roi_ts):
-    m = compute_pli(roi_ts)
-    assert m.dtype == np.float32
-
-
-def test_get_strategy_pli():
-    s = get_connectivity_strategy("pli")
-    assert isinstance(s, PLIConnectivityStrategy)
-
-
-def test_validate_method_alias_pli():
-    assert validate_connectivity_method("phase lag index") == "pli"
-
-
-# ---------------------------------------------------------------------------
-# wPLI (Weighted Phase Lag Index)
-# ---------------------------------------------------------------------------
-
-def test_wpli_shape(roi_ts):
-    m = compute_wpli(roi_ts)
-    assert m.shape == (N, N)
-
-
-def test_wpli_symmetric(roi_ts):
-    m = compute_wpli(roi_ts)
-    np.testing.assert_allclose(m, m.T, atol=1e-5)
-
-
-def test_wpli_zero_diagonal(roi_ts):
-    m = compute_wpli(roi_ts)
-    np.testing.assert_array_equal(np.diag(m), np.zeros(N))
-
-
-def test_wpli_non_negative(roi_ts):
-    m = compute_wpli(roi_ts)
-    assert np.all(m >= 0.0 - 1e-5)
-
-
-def test_wpli_no_nan(roi_ts):
-    m = compute_wpli(roi_ts)
-    assert not np.any(np.isnan(m))
-
-
-def test_wpli_dtype(roi_ts):
-    m = compute_wpli(roi_ts)
-    assert m.dtype == np.float32
-
-
-def test_get_strategy_wpli():
-    s = get_connectivity_strategy("wpli")
-    assert isinstance(s, WPLIConnectivityStrategy)
-
-
-def test_validate_method_alias_wpli():
-    assert validate_connectivity_method("weighted phase lag index") == "wpli"
-
-
-# ---------------------------------------------------------------------------
 # Coherence (magnitude-squared, requires TR)
 # ---------------------------------------------------------------------------
 
@@ -552,14 +413,16 @@ def test_imag_coherence_shape(roi_ts):
     assert m.shape == (N, N)
 
 
-def test_imag_coherence_symmetric(roi_ts):
+def test_imag_coherence_antisymmetric(roi_ts):
+    # Signed imaginary coherence (Nolte 2004): IC(i,j) = -IC(j,i)
     m = compute_imaginary_coherence(roi_ts, TR)
-    np.testing.assert_allclose(m, m.T, atol=1e-5)
+    np.testing.assert_allclose(m, -m.T, atol=1e-5)
 
 
-def test_imag_coherence_non_negative(roi_ts):
+def test_imag_coherence_diagonal_zero(roi_ts):
+    # Self-coherence imaginary part is always 0
     m = compute_imaginary_coherence(roi_ts, TR)
-    assert np.all(m >= 0.0 - 1e-5)
+    np.testing.assert_allclose(np.diag(m), 0.0, atol=1e-5)
 
 
 def test_imag_coherence_no_nan(roi_ts):
@@ -597,7 +460,7 @@ def test_validate_method_alias_imag_coherence():
 
 def test_list_connectivity_measures_includes_new():
     measures = list_connectivity_measures()
-    for method in ("partial_correlation", "plv", "pli", "wpli", "coherence", "imag_coherence"):
+    for method in ("partial_correlation", "coherence", "imag_coherence", "aec", "aec_orth"):
         assert method in measures
 
 
@@ -657,64 +520,6 @@ def test_get_strategy_aec_orth():
 
 def test_validate_alias_aec_orth():
     assert validate_connectivity_method("aec_c") == "aec_orth"
-
-
-# ---------------------------------------------------------------------------
-# dWPLI — Debiased WPLI
-# ---------------------------------------------------------------------------
-
-def test_dwpli_shape(roi_ts):
-    assert compute_dwpli(roi_ts).shape == (N, N)
-
-def test_dwpli_symmetric(roi_ts):
-    m = compute_dwpli(roi_ts)
-    np.testing.assert_allclose(m, m.T, atol=1e-5)
-
-def test_dwpli_zero_diagonal(roi_ts):
-    np.testing.assert_array_equal(np.diag(compute_dwpli(roi_ts)), np.zeros(N))
-
-def test_dwpli_no_nan(roi_ts):
-    assert not np.any(np.isnan(compute_dwpli(roi_ts)))
-
-def test_dwpli_dtype(roi_ts):
-    assert compute_dwpli(roi_ts).dtype == np.float32
-
-def test_get_strategy_dwpli():
-    assert isinstance(get_connectivity_strategy("dwpli"), DWPLIConnectivityStrategy)
-
-def test_validate_alias_dwpli():
-    assert validate_connectivity_method("debiased wpli") == "dwpli"
-
-
-# ---------------------------------------------------------------------------
-# PPC — Pairwise Phase Consistency
-# ---------------------------------------------------------------------------
-
-def test_ppc_shape(roi_ts):
-    assert compute_ppc(roi_ts).shape == (N, N)
-
-def test_ppc_symmetric(roi_ts):
-    m = compute_ppc(roi_ts)
-    np.testing.assert_allclose(m, m.T, atol=1e-5)
-
-def test_ppc_diagonal_ones(roi_ts):
-    np.testing.assert_allclose(np.diag(compute_ppc(roi_ts)), np.ones(N), atol=1e-5)
-
-def test_ppc_range(roi_ts):
-    m = compute_ppc(roi_ts)
-    assert np.all(m >= -1e-5) and np.all(m <= 1.0 + 1e-5)
-
-def test_ppc_no_nan(roi_ts):
-    assert not np.any(np.isnan(compute_ppc(roi_ts)))
-
-def test_ppc_dtype(roi_ts):
-    assert compute_ppc(roi_ts).dtype == np.float32
-
-def test_get_strategy_ppc():
-    assert isinstance(get_connectivity_strategy("ppc"), PPCConnectivityStrategy)
-
-def test_validate_alias_ppc():
-    assert validate_connectivity_method("pairwise phase consistency") == "ppc"
 
 
 # ---------------------------------------------------------------------------
@@ -934,7 +739,7 @@ def test_validate_alias_psi():
 def test_list_all_new_measures():
     measures = list_connectivity_measures()
     for m in (
-        "aec", "aec_orth", "dwpli", "ppc", "mutual_information",
+        "aec", "aec_orth", "mutual_information",
         "sync_likelihood", "lagged_coherence", "granger_causality",
         "transfer_entropy", "pdc", "psi",
     ):

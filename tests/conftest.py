@@ -88,7 +88,7 @@ def preprocess_bundle(input_bundle):
         apply_motion_correction=False,
         apply_slice_timing=False,
         apply_outlier_detection=False,
-        apply_normalization=False,
+        apply_voxel_zscore=False,
         apply_smoothing=False,
     )
     return PreprocessBRAPHINData(input_bundle, cfg).run()

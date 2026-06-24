@@ -15,7 +15,7 @@
     <div class="sidebar-logo-icon">🧠</div>
     <div class="sidebar-logo-text">
       <span class="name">BRAPHIN</span>
-      <span class="version">v1.0.0</span>
+      <span class="version">v1.2.0</span>
     </div>
   </a>
 
@@ -53,9 +53,9 @@
     <p>A Python library for resting-state fMRI functional connectivity analysis. From NIfTI file to NetworkX graph in five pipeline stages.</p>
     <div class="hero-badges">
       <span class="badge badge-blue">Python ≥ 3.9</span>
-      <span class="badge badge-green">167 Tests Passing</span>
+      <span class="badge badge-green">400+ Tests Passing</span>
       <span class="badge badge-amber">MIT License</span>
-      <span class="badge">v1.0.0</span>
+      <span class="badge">v1.2.0</span>
     </div>
   </div>
 
@@ -74,8 +74,13 @@
     </div>
     <div class="card">
       <div class="card-icon">📊</div>
-      <h3>Three Connectivity Measures</h3>
-      <p>Pearson correlation, cross-correlation, and corrected cross-correlation with optional absolute threshold.</p>
+      <h3>15 Connectivity Methods</h3>
+      <p>Pearson, partial correlation, cross-correlation, coherence, AEC, mutual information, Granger causality, transfer entropy, PDC, PSI, and more.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎵</div>
+      <h3>fMRI Frequency Bands</h3>
+      <p>Predefined BOLD oscillation bands (slow-5, slow-4, slow-3, broadband) based on Zuo et al. 2010. Per-band connectivity analysis in one call.</p>
     </div>
     <div class="card">
       <div class="card-icon">🕸️</div>
@@ -85,12 +90,12 @@
     <div class="card">
       <div class="card-icon">🔗</div>
       <h3>Unified EEG + fMRI API</h3>
-      <p>Extends EEGraph. Use the same <code>Graph.load_data()</code> / <code>Graph.modelate()</code> calls for both modalities.</p>
+      <p>Extends EEGraph. Use the same <code>Graph.load_data()</code> / <code>Graph.modelate()</code> calls for both modalities. Always import <code>Graph</code> from <code>braphin</code>.</p>
     </div>
     <div class="card">
       <div class="card-icon">🧪</div>
       <h3>Fully Tested</h3>
-      <p>167 pytest unit and integration tests. All tests use synthetic data — no external files required.</p>
+      <p>400+ pytest unit and integration tests. All tests use synthetic data — no external files required.</p>
     </div>
   </div>
 
@@ -103,9 +108,9 @@
       <div class="pipe-box">
         <div class="pipe-box-head">
           <div class="pipe-step-num">1</div>
-          <strong>InputMRIData</strong>
+          <strong>InputfMRIData</strong>
         </div>
-        <small>Validates and loads the NIfTI file. Accepts auxiliary files (TSV confounds, CSV, NPY, JSON). Returns <code>MRIInputBundle</code>.</small>
+        <small>Validates and loads the NIfTI file. Accepts auxiliary files (TSV confounds, CSV, NPY, JSON). Returns <code>BRAPHINInputBundle</code>.</small>
       </div>
     </div>
     <div class="pipe-arrow">▼</div>
@@ -113,9 +118,9 @@
       <div class="pipe-box">
         <div class="pipe-box-head">
           <div class="pipe-step-num">2</div>
-          <strong>PreprocessMRIData</strong>
+          <strong>PreprocessBRAPHINData</strong>
         </div>
-        <small>Cleans NaN/inf values; optional slice-timing correction, motion correction, outlier detection, per-voxel temporal z-score normalisation, and spatial smoothing. Returns <code>MRIPreprocessBundle</code>.</small>
+        <small>Cleans NaN/inf values; optional slice-timing correction, motion correction, outlier detection, per-voxel temporal z-score normalisation, and spatial smoothing. Returns <code>BRAPHINPreprocessBundle</code>.</small>
       </div>
     </div>
     <div class="pipe-arrow">▼</div>
@@ -123,9 +128,9 @@
       <div class="pipe-box">
         <div class="pipe-box-head">
           <div class="pipe-step-num">3</div>
-          <strong>DenoiseMRIData</strong>
+          <strong>DenoiseBRAPHINData</strong>
         </div>
-        <small>Least-squares confound regression using motion parameters or any TSV/CSV confound file. Returns <code>MRIDenoiseBundle</code>.</small>
+        <small>Least-squares confound regression using motion parameters or any TSV/CSV confound file. Returns <code>BRAPHINDenoiseBundle</code>.</small>
       </div>
     </div>
     <div class="pipe-arrow">▼</div>
@@ -133,9 +138,9 @@
       <div class="pipe-box">
         <div class="pipe-box-head">
           <div class="pipe-step-num">4</div>
-          <strong>TransformMRIData</strong>
+          <strong>TransformBRAPHINData</strong>
         </div>
-        <small>Atlas parcellation with automatic resampling. Extracts per-ROI mean time series and world-space centroids. Returns <code>MRITransformBundle</code>.</small>
+        <small>Atlas parcellation with automatic resampling. Extracts per-ROI mean time series and world-space centroids. Returns <code>BRAPHINTransformBundle</code>.</small>
       </div>
     </div>
     <div class="pipe-arrow">▼</div>
@@ -143,9 +148,9 @@
       <div class="pipe-box">
         <div class="pipe-box-head">
           <div class="pipe-step-num">5</div>
-          <strong>ModelMRIConnectivityData</strong>
+          <strong>ModelBRAPHINConnectivityData</strong>
         </div>
-        <small>Computes the ROI×ROI connectivity matrix and builds a NetworkX graph. Returns <code>MRIConnectivityBundle</code>.</small>
+        <small>Computes the ROI×ROI connectivity matrix (15 methods) and builds a NetworkX graph. Returns <code>BRAPHINConnectivityBundle</code>.</small>
       </div>
     </div>
   </div>
@@ -153,37 +158,37 @@
   <!-- Quick start -->
   <h2>Quick Start</h2>
   <pre><code class="language-python">from braphin import (
-    InputMRIData, PreprocessMRIData, DenoiseMRIData,
-    TransformMRIData, ModelMRIConnectivityData,
+    InputfMRIData, PreprocessBRAPHINData, DenoiseBRAPHINData,
+    TransformBRAPHINData, ModelBRAPHINConnectivityData,
     PreprocessConfig, DenoiseConfig, AtlasConfig, ConnectivityConfig,
 )
 
 # 1 — Load
-input_bundle = InputMRIData(
+input_bundle = InputfMRIData(
     "sub-01_task-rest_bold.nii.gz",
     auxiliary_paths=["sub-01_task-rest_confounds_timeseries.tsv"],
 ).load()
 
 # 2 — Preprocess
-pp_bundle = PreprocessMRIData(
+pp_bundle = PreprocessBRAPHINData(
     input_bundle,
-    PreprocessConfig(apply_normalization=True),
+    PreprocessConfig(apply_voxel_zscore=True),
 ).run()
 
 # 3 — Denoise: regress out motion confounds
-dn_bundle = DenoiseMRIData(
+dn_bundle = DenoiseBRAPHINData(
     pp_bundle,
     DenoiseConfig(regress_confounds=True),
 ).run()
 
 # 4 — Parcellate with the AAL atlas (116 ROIs)
-tx_bundle = TransformMRIData(
+tx_bundle = TransformBRAPHINData(
     dn_bundle,
     config=AtlasConfig(atlas_name="aal"),
 ).run()
 
 # 5 — Compute Pearson functional connectivity
-conn_bundle = ModelMRIConnectivityData(
+conn_bundle = ModelBRAPHINConnectivityData(
     tx_bundle,
     ConnectivityConfig(method="pearson_correlation", threshold=0.3),
 ).run()
@@ -192,7 +197,7 @@ matrix = conn_bundle.connectivity_matrix   # ndarray shape (116, 116)
 </code></pre>
 
   <div class="note">
-    <strong>📖 New here?</strong> Follow the step-by-step
+    <strong>New here?</strong> Follow the step-by-step
     <a href="user_guide.html">User Guide</a> for detailed explanations
     of every stage, all configuration options, and working with custom atlases.
   </div>
@@ -203,6 +208,7 @@ matrix = conn_bundle.connectivity_matrix   # ndarray shape (116, 116)
     <li><strong>Bundle pattern:</strong> each stage consumes and produces a typed dataclass — full pipeline traceability with no hidden state.</li>
     <li><strong>Strategy pattern:</strong> connectivity measures are interchangeable without touching pipeline code.</li>
     <li><strong>Fail loudly:</strong> a seven-class exception hierarchy (<code>BRAPHINError</code> → <em>stage-specific</em>) with actionable messages — no silent failures.</li>
+    <li><strong>One-way dependency:</strong> <code>braphin</code> depends on <code>eegraph</code>; <code>eegraph</code> has zero imports from <code>braphin</code>. <code>BRAPHINGraph</code> (exported as <code>Graph</code>) subclasses <code>eegraph.graph.Graph</code> to add fMRI routing.</li>
     <li><strong>Synthetic tests only:</strong> the full test suite runs without any real neuroimaging data files.</li>
   </ul>
 
@@ -217,7 +223,7 @@ matrix = conn_bundle.connectivity_matrix   # ndarray shape (116, 116)
     <div class="card">
       <div class="card-icon">📖</div>
       <h3><a href="user_guide.html">User Guide</a></h3>
-      <p>Full walkthrough: loading data, each pipeline stage, atlases, connectivity, error handling, and GNN output.</p>
+      <p>Full walkthrough: loading data, each pipeline stage, atlases, connectivity, frequency bands, error handling, and GNN output.</p>
     </div>
     <div class="card">
       <div class="card-icon">📚</div>

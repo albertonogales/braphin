@@ -53,7 +53,7 @@ def test_full_pipeline_completes(pipeline_fmri_path):
         input_bundle,
         PreprocessConfig(
             apply_motion_correction=False, apply_slice_timing=False,
-            apply_outlier_detection=False, apply_normalization=False, apply_smoothing=False,
+            apply_outlier_detection=False, apply_voxel_zscore=False, apply_smoothing=False,
         ),
     ).run()
 
@@ -81,7 +81,7 @@ def test_pipeline_preprocessed_shape(pipeline_fmri_path):
         input_bundle,
         PreprocessConfig(
             apply_motion_correction=False, apply_slice_timing=False,
-            apply_outlier_detection=False, apply_normalization=False, apply_smoothing=False,
+            apply_outlier_detection=False, apply_voxel_zscore=False, apply_smoothing=False,
         ),
     ).run()
     assert pp_bundle.preprocessed_data.shape == (*SPATIAL, T)
@@ -93,7 +93,7 @@ def test_pipeline_roi_time_series_shape(pipeline_fmri_path):
         input_bundle,
         PreprocessConfig(
             apply_motion_correction=False, apply_slice_timing=False,
-            apply_outlier_detection=False, apply_normalization=False, apply_smoothing=False,
+            apply_outlier_detection=False, apply_voxel_zscore=False, apply_smoothing=False,
         ),
     ).run()
     dn_bundle = DenoiseBRAPHINData(
@@ -116,7 +116,7 @@ def test_pipeline_with_confound_regression(pipeline_fmri_path):
         input_bundle,
         PreprocessConfig(
             apply_motion_correction=False, apply_slice_timing=False,
-            apply_outlier_detection=False, apply_normalization=False, apply_smoothing=False,
+            apply_outlier_detection=False, apply_voxel_zscore=False, apply_smoothing=False,
         ),
     ).run()
 
@@ -150,10 +150,10 @@ def test_pipeline_with_normalization(pipeline_fmri_path):
         input_bundle,
         PreprocessConfig(
             apply_motion_correction=False, apply_slice_timing=False,
-            apply_outlier_detection=False, apply_normalization=True, apply_smoothing=False,
+            apply_outlier_detection=False, apply_voxel_zscore=True, apply_smoothing=False,
         ),
     ).run()
-    assert "per_voxel_temporal_normalisation" in pp_bundle.applied_steps
+    assert "per_voxel_temporal_zscore" in pp_bundle.applied_steps
 
     dn_bundle = DenoiseBRAPHINData(
         pp_bundle,
@@ -180,7 +180,7 @@ def test_pipeline_all_connectivity_methods(pipeline_fmri_path, method):
         input_bundle,
         PreprocessConfig(
             apply_motion_correction=False, apply_slice_timing=False,
-            apply_outlier_detection=False, apply_normalization=False, apply_smoothing=False,
+            apply_outlier_detection=False, apply_voxel_zscore=False, apply_smoothing=False,
         ),
     ).run()
     dn_bundle = DenoiseBRAPHINData(
@@ -206,7 +206,7 @@ def test_fmri_path_propagates_through_pipeline(pipeline_fmri_path):
         input_bundle,
         PreprocessConfig(
             apply_motion_correction=False, apply_slice_timing=False,
-            apply_outlier_detection=False, apply_normalization=False, apply_smoothing=False,
+            apply_outlier_detection=False, apply_voxel_zscore=False, apply_smoothing=False,
         ),
     ).run()
     dn_bundle = DenoiseBRAPHINData(
