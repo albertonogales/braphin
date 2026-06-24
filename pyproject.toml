@@ -17,13 +17,6 @@ authors = [
 maintainers = [
     { name = "David Ortega Lozano" },
 ]
-
-[project.urls]
-Homepage       = "https://github.com/ufvceiec/braphin"
-Documentation  = "https://ufvceiec.github.io/braphin/"
-Repository     = "https://github.com/ufvceiec/braphin"
-"Bug Tracker"  = "https://github.com/ufvceiec/braphin/issues"
-Changelog      = "https://github.com/ufvceiec/braphin/blob/main/CHANGELOG.md"
 keywords = [
     "fMRI", "neuroimaging", "functional connectivity",
     "brain graphs", "graph neural networks", "BOLD", "resting-state",
@@ -54,6 +47,13 @@ dependencies = [
     "scipy>=1.10",
     "networkx>=3.0",
 ]
+
+[project.urls]
+Homepage       = "https://github.com/ufvceiec/braphin"
+Documentation  = "https://ufvceiec.github.io/braphin/"
+Repository     = "https://github.com/ufvceiec/braphin"
+"Bug Tracker"  = "https://github.com/ufvceiec/braphin/issues"
+Changelog      = "https://github.com/ufvceiec/braphin/blob/main/CHANGELOG.md"
 
 # ---------------------------------------------------------------------------
 # Optional dependency groups
