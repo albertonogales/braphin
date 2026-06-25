@@ -1,7 +1,7 @@
 # BRAPHIN
 
 [![Tests](https://github.com/albertonogales/braphin/actions/workflows/tests.yml/badge.svg)](https://github.com/albertonogales/braphin/actions/workflows/tests.yml)
-[![Coverage](https://codecov.io/gh/albertonogales/braphin/branch/main/graph/badge.svg)](https://codecov.io/gh/albertonogales/braphin)
+[![Coverage](https://raw.githubusercontent.com/albertonogales/braphin/main/coverage-badge.svg)](https://github.com/albertonogales/braphin/actions)
 [![PyPI version](https://badge.fury.io/py/braphin.svg)](https://pypi.org/project/braphin/)
 [![Python versions](https://img.shields.io/pypi/pyversions/braphin.svg)](https://pypi.org/project/braphin/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

@@ -35,13 +35,20 @@ jobs:
       - name: Run tests with coverage
         run: pytest --cov=braphin --cov-report=xml --cov-report=term-missing -v
 
-      - name: Upload coverage to Codecov
+      - name: Generate coverage badge
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
-        uses: codecov/codecov-action@v4
-        with:
-          files: coverage.xml
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          pip install genbadge[coverage]
+          genbadge coverage -i coverage.xml -o coverage-badge.svg
+
+      - name: Commit coverage badge
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add coverage-badge.svg
+          git diff --cached --quiet || git commit -m "chore: update coverage badge [skip ci]"
+          git push
 
   lint:
     name: Lint (ruff)
