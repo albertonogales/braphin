@@ -49,11 +49,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage       = "https://github.com/ufvceiec/braphin"
-Documentation  = "https://ufvceiec.github.io/braphin/"
-Repository     = "https://github.com/ufvceiec/braphin"
-"Bug Tracker"  = "https://github.com/ufvceiec/braphin/issues"
-Changelog      = "https://github.com/ufvceiec/braphin/blob/main/CHANGELOG.md"
+Homepage       = "https://github.com/albertonogales/braphin"
+Documentation  = "https://albertonogales.github.io/braphin/"
+Repository     = "https://github.com/albertonogales/braphin"
+"Bug Tracker"  = "https://github.com/albertonogales/braphin/issues"
+Changelog      = "https://github.com/albertonogales/braphin/blob/main/CHANGELOG.md"
 
 # ---------------------------------------------------------------------------
 # Optional dependency groups
