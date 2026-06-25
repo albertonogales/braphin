@@ -119,7 +119,7 @@ def bandpass_roi_time_series(
         axis=1,
     )
 
-    return filtered.astype(np.float32)
+    return np.asarray(filtered, dtype=np.float32)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

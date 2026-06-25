@@ -257,7 +257,7 @@ def get_connectivity_strategy(
             "(repetition time in seconds). Set tr in ConnectivityConfig."
         )
 
-    _map = {
+    _map: dict[str, type[ConnectivityStrategy]] = {
         "pearson_correlation": PearsonConnectivityStrategy,
         "cross_correlation": CrossCorrelationConnectivityStrategy,
         "corr_cross_correlation": CorrectedCrossCorrelationConnectivityStrategy,
@@ -269,16 +269,19 @@ def get_connectivity_strategy(
         "transfer_entropy": TransferEntropyConnectivityStrategy,
     }
     if normalized in _map:
-        return _map[normalized]()
+        return _map[normalized]()  # type: ignore[abstract]
 
+    if normalized == "granger_causality":
+        return GrangerCausalityConnectivityStrategy(model_order=model_order)
+
+    # For spectral methods below, tr is guaranteed non-None by the guard above.
+    assert tr is not None
     if normalized == "coherence":
         return CoherenceConnectivityStrategy(tr)
     if normalized == "imag_coherence":
         return ImaginaryCoherenceConnectivityStrategy(tr)
     if normalized == "lagged_coherence":
         return LaggedCoherenceConnectivityStrategy(tr)
-    if normalized == "granger_causality":
-        return GrangerCausalityConnectivityStrategy(model_order=model_order)
     if normalized == "pdc":
         return PDCConnectivityStrategy(tr=tr, model_order=model_order)
     if normalized == "psi":

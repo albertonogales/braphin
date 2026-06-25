@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass, field
+from typing import Any, cast
 
 import numpy as np
 
@@ -154,7 +155,7 @@ class PreprocessBRAPHINData:
 
     def _extract_fmri_array(self) -> np.ndarray:
         try:
-            return self.input_bundle.fmri_image.get_fdata(dtype=np.float32)
+            return np.asarray(cast(Any, self.input_bundle.fmri_image).get_fdata(dtype=np.float32))
         except Exception as exc:
             raise PreprocessingError(
                 "Could not extract the numerical array from the fMRI image."
@@ -259,7 +260,7 @@ class PreprocessBRAPHINData:
             interpolated = (1.0 - alpha) * slice_data[..., lo] + alpha * slice_data[..., hi]
 
             # Write back using a dynamic index tuple
-            idx = [slice(None)] * 4
+            idx: list[slice | int] = [slice(None)] * 4
             idx[slice_axis] = z
             corrected[tuple(idx)] = interpolated
 
@@ -302,7 +303,7 @@ class PreprocessBRAPHINData:
         X, Y, Z, T = fmri_data.shape
 
         # NIfTI affine: maps voxel indices → world coordinates (mm)
-        affine = self.input_bundle.fmri_image.affine.astype(np.float64)
+        affine = cast(Any, self.input_bundle.fmri_image).affine.astype(np.float64)
         affine_inv = np.linalg.inv(affine)
 
         # World-space centre of the volume (mm)
@@ -480,7 +481,7 @@ class PreprocessBRAPHINData:
         std = fmri_data.std(axis=3, keepdims=True)
         # Avoid division by zero for constant-signal voxels
         std[std < 1e-10] = 1.0
-        return ((fmri_data - mean) / std).astype(np.float32)
+        return np.asarray((fmri_data - mean) / std, dtype=np.float32)
 
     # --------------------------------------------------------------------------
     # Step 6 -- Spatial smoothing
@@ -503,7 +504,7 @@ class PreprocessBRAPHINData:
             raise PreprocessingError(f"smoothing_fwhm must be positive (got {fwhm}).")
 
         # Voxel sizes from NIfTI header
-        zooms = None
+        zooms: Any = None
         if self.input_bundle.fmri_metadata is not None:
             zooms = self.input_bundle.fmri_metadata.get("zooms")
         if zooms is not None and len(zooms) >= 3:
@@ -541,7 +542,11 @@ class PreprocessBRAPHINData:
         motion_params: np.ndarray | None,
         outlier_mask: np.ndarray | None,
     ) -> dict[str, object]:
-        original_shape = self.input_bundle.fmri_metadata.get("shape")
+        original_shape = (
+            self.input_bundle.fmri_metadata.get("shape")
+            if self.input_bundle.fmri_metadata is not None
+            else None
+        )
         n_outliers = int(np.sum(outlier_mask)) if outlier_mask is not None else 0
 
         return {

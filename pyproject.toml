@@ -145,3 +145,7 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true   # nibabel stubs not available
+
+[[tool.mypy.overrides]]
+module = "eegraph.*"
+ignore_errors = true

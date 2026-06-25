@@ -74,6 +74,7 @@ class TransformBRAPHINData:
         self._validate_denoise_bundle()
 
         fmri_data = self.denoise_bundle.denoised_data
+        assert fmri_data is not None
         spatial_shape = fmri_data.shape[:3]
         num_timepoints = fmri_data.shape[3]
 
@@ -327,8 +328,8 @@ class TransformBRAPHINData:
 
         Convention: label 0 is background; all values > 0 are ROIs.
         """
-        roi_ids = np.unique(atlas_labels)
-        roi_ids = roi_ids[roi_ids > 0]
+        roi_ids = np.asarray(np.unique(atlas_labels))
+        roi_ids = np.asarray(roi_ids[roi_ids > 0])
 
         if roi_ids.size == 0:
             raise TransformationError("No valid ROI labels found in the atlas (all values are 0).")
@@ -397,11 +398,11 @@ class TransformBRAPHINData:
                     f"ROI {int(roi_id)} did not produce a valid voxel x time matrix."
                 )
 
-            roi_mean_ts = np.mean(roi_voxels, axis=0, dtype=np.float32)
-            roi_series_list.append(roi_mean_ts.astype(np.float32))
+            roi_mean_ts = np.asarray(np.mean(roi_voxels, axis=0), dtype=np.float32)
+            roi_series_list.append(roi_mean_ts)
             roi_sizes[int(roi_id)] = int(roi_voxels.shape[0])
 
-        roi_time_series = np.vstack(roi_series_list).astype(np.float32)
+        roi_time_series = np.asarray(np.vstack(roi_series_list), dtype=np.float32)
         return roi_time_series, roi_sizes
 
     def _build_transform_metadata(

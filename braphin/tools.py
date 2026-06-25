@@ -184,7 +184,7 @@ def compute_pearson_correlation(roi_time_series: np.ndarray) -> np.ndarray:
 
     np.fill_diagonal(connectivity_matrix, 1.0)
 
-    return connectivity_matrix
+    return np.asarray(connectivity_matrix, dtype=np.float32)
 
 
 def _normalized_cross_correlation(x: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -228,7 +228,7 @@ def _normalized_cross_correlation(x: np.ndarray, y: np.ndarray) -> np.ndarray:
         neginf=0.0,
     )
 
-    return Rxy_norm
+    return np.asarray(Rxy_norm, dtype=np.float32)
 
 
 def _cross_correlation_coef(x: np.ndarray, y: np.ndarray) -> float:
@@ -422,7 +422,7 @@ def compute_partial_correlation(roi_time_series: np.ndarray) -> np.ndarray:
     np.fill_diagonal(partial_corr, 1.0)
     partial_corr = np.clip(partial_corr, -1.0, 1.0)
 
-    return partial_corr.astype(np.float32)
+    return np.asarray(partial_corr, dtype=np.float32)
 
 
 # ============================================================
@@ -541,7 +541,7 @@ def compute_aec(roi_time_series: np.ndarray) -> np.ndarray:
     conn = np.corrcoef(envelopes, rowvar=True)
     conn = np.nan_to_num(conn, nan=0.0, posinf=0.0, neginf=0.0)
     np.fill_diagonal(conn, 1.0)
-    return conn.astype(np.float32)
+    return np.asarray(conn, dtype=np.float32)
 
 
 def compute_aec_orth(roi_time_series: np.ndarray) -> np.ndarray:
@@ -883,7 +883,7 @@ def _discretize_signal(x: np.ndarray, n_bins: int) -> np.ndarray:
     if x_max == x_min:
         return np.zeros(len(x), dtype=np.intp)
     idx = np.floor(n_bins * (x - x_min) / (x_max - x_min)).astype(np.intp)
-    return np.clip(idx, 0, n_bins - 1)
+    return np.asarray(np.clip(idx, 0, n_bins - 1))
 
 
 def _transfer_entropy_pair(

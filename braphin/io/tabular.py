@@ -33,7 +33,7 @@ def load_npy_file(file_path: str | Path) -> np.ndarray:
     except Exception as exc:
         raise BRAPHINFormatError(f"Failed to load .npy file: {file_path}") from exc
 
-    return data
+    return np.asarray(data)
 
 
 def load_delimited_file(file_path: str | Path, delimiter: str) -> np.ndarray:

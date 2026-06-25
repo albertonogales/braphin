@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class InputEEGData:
         self.eeg_path = str(eeg_path)
         self.exclude = exclude if exclude is not None else [None]
         self.electrode_montage_path = electrode_montage_path
-        self._backend = None
+        self._backend: Any = None
 
     def load(self) -> EEGInputBundle:
         """

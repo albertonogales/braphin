@@ -40,6 +40,7 @@ Newman (2004). Fast algorithm for detecting community structure in networks.
 from __future__ import annotations
 
 import logging
+from typing import Any, cast
 
 import networkx as nx
 import numpy as np
@@ -208,14 +209,21 @@ def compute_graph_metrics(G: nx.Graph) -> dict[str, object]:
     # Small-world sigma: σ = (C / C_rand) / (L / L_rand)
     # Analytical random-graph approximations: C_rand ≈ <k>/n, L_rand ≈ ln(n)/ln(<k>)
     L = metrics["average_path_length"]
-    if n > 1 and G_clean.number_of_edges() > 0 and not np.isnan(float(L)) and float(L) > 0:
+    if (
+        n > 1
+        and G_clean.number_of_edges() > 0
+        and not np.isnan(float(cast(Any, L)))
+        and float(cast(Any, L)) > 0
+    ):
         k_mean = float(np.mean([d for _, d in G_clean.degree()]))
-        C = float(metrics["average_clustering"])
+        C = float(cast(Any, metrics["average_clustering"]))
         if k_mean > 1:
             C_rand = k_mean / n
             L_rand = np.log(n) / np.log(k_mean)
             metrics["small_world_sigma"] = (
-                (C / C_rand) / (float(L) / L_rand) if C_rand > 0 and L_rand > 0 else float("nan")
+                (C / C_rand) / (float(cast(Any, L)) / L_rand)
+                if C_rand > 0 and L_rand > 0
+                else float("nan")
             )
         else:
             metrics["small_world_sigma"] = float("nan")

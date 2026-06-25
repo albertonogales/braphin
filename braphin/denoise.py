@@ -244,7 +244,7 @@ class DenoiseBRAPHINData:
             raise DenoisingError("Failed to solve the confound regression.") from exc
 
         residuals = signal_tv - D @ betas
-        return residuals.T.astype(np.float32)
+        return np.asarray(residuals.T, dtype=np.float32)
 
     # -------------------------------------------------------------------------
     # Step 2 -- Scrubbing
@@ -356,7 +356,7 @@ class DenoiseBRAPHINData:
 
         # confounds_matrix is (T, K); filter along axis=0 (time)
         filtered = sosfiltfilt(sos, confounds_matrix.astype(np.float64), axis=0)
-        return filtered.astype(np.float32)
+        return np.asarray(filtered, dtype=np.float32)
 
     def _apply_bandpass_filter(self, voxel_time_series: np.ndarray) -> np.ndarray:
         """
@@ -395,13 +395,14 @@ class DenoiseBRAPHINData:
 
         # Apply zero-phase filter along time axis (axis=1 of (V, T) matrix)
         filtered = sosfiltfilt(sos, voxel_time_series.astype(np.float64), axis=1)
-        return filtered.astype(np.float32)
+        return np.asarray(filtered, dtype=np.float32)
 
     # -------------------------------------------------------------------------
     # Helpers
     # -------------------------------------------------------------------------
 
     def _reshape_to_4d(self, voxel_time_series: np.ndarray) -> np.ndarray:
+        assert self.preprocess_bundle.preprocessed_data is not None
         shape = self.preprocess_bundle.preprocessed_data.shape
         try:
             return voxel_time_series.reshape(shape).astype(np.float32)
@@ -415,6 +416,7 @@ class DenoiseBRAPHINData:
         confounds_shape: tuple[int, int] | None,
         n_scrubbed: int = 0,
     ) -> dict[str, object]:
+        assert self.preprocess_bundle.preprocessed_data is not None
         return {
             "denoised_4d_shape": tuple(self.preprocess_bundle.preprocessed_data.shape),
             "denoised_voxel_time_series_shape": tuple(voxel_time_series.shape),
