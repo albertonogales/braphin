@@ -35,18 +35,33 @@ jobs:
       - name: Run tests with coverage
         run: pytest --cov=braphin --cov-report=xml --cov-report=term-missing -v
 
-      - name: Generate coverage badge
+      - name: Generate coverage JSON for badge
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         run: |
-          pip install genbadge[coverage]
-          genbadge coverage -i coverage.xml -o coverage-badge.svg
+          pip install coverage
+          PCT=$(python -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('coverage.xml')
+          root = tree.getroot()
+          pct = float(root.attrib['line-rate']) * 100
+          print(f'{pct:.0f}')
+          ")
+          COLOR=$(python -c "
+          p=$PCT
+          if p >= 90: print('brightgreen')
+          elif p >= 75: print('green')
+          elif p >= 60: print('yellow')
+          else: print('red')
+          " 2>/dev/null || echo 'green')
+          echo "{\"schemaVersion\":1,\"label\":\"coverage\",\"message\":\"${PCT}%\",\"color\":\"${COLOR}\"}" > coverage.json
+          cat coverage.json
 
-      - name: Commit coverage badge
+      - name: Commit coverage JSON
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11' && github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add coverage-badge.svg
+          git add coverage.json
           git diff --cached --quiet || git commit -m "chore: update coverage badge [skip ci]"
           git push
 
