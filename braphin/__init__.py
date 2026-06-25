@@ -52,9 +52,19 @@ EEG pipeline stages
 
 __version__ = "1.0.0"
 
-# EEG utilities
-from eegraph.io import load_deap_dat
-from eegraph.tools import connectivity_measures as EEG_CONNECTIVITY_MEASURES  # {name: class_name}
+# EEG utilities — optional: require the [eeg] extra (mne, pandas, …).
+# Importing braphin without mne still works for fMRI-only use cases.
+try:
+    from eegraph.io import load_deap_dat
+    from eegraph.tools import (
+        connectivity_measures as EEG_CONNECTIVITY_MEASURES,  # {name: class_name}
+    )
+
+    _EEG_AVAILABLE = True
+except ImportError:
+    load_deap_dat = None  # type: ignore[assignment]
+    EEG_CONNECTIVITY_MEASURES = {}
+    _EEG_AVAILABLE = False
 
 from .bands import (
     FMRI_BANDS,
@@ -121,7 +131,11 @@ def list_fmri_connectivity_measures():
 
 
 def list_eeg_connectivity_measures():
-    """Return the list of supported EEG connectivity method names."""
+    """Return the list of supported EEG connectivity method names.
+
+    Requires the ``[eeg]`` optional dependency group (``pip install braphin[eeg]``).
+    Returns an empty list when the EEG stack is not installed.
+    """
     return list(EEG_CONNECTIVITY_MEASURES.keys())
 
 
