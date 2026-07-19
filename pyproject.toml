@@ -10,7 +10,8 @@ name = "braphin"
 version = "1.0.0"
 description = "fMRI functional connectivity pipeline with graph and GNN support"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "David Ortega Lozano" },
 ]
@@ -25,7 +26,6 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
