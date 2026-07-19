@@ -323,3 +323,47 @@ def test_metrics_all_keys(simple_graph):
 
 def test_metrics_all_empty_dict():
     assert compute_metrics_all({}) == {}
+
+
+# ---------------------------------------------------------------------------
+# Eigenvector centrality convergence failure
+# ---------------------------------------------------------------------------
+
+def test_eigenvector_centrality_convergence_failure():
+    """A star graph with extreme weights causes eigenvector non-convergence; must not raise."""
+    G = nx.Graph()
+    # bipartite-like structure that can cause convergence issues at max_iter=1
+    for i in range(1, 10):
+        G.add_edge(0, i, weight=1e6)
+    m = compute_graph_metrics(G)
+    # Should return either real floats or NaN — must not raise
+    assert "eigenvector_centrality" in m
+
+
+# ---------------------------------------------------------------------------
+# Degree assortativity exception path
+# ---------------------------------------------------------------------------
+
+def test_degree_assortativity_single_node():
+    """A graph with one node produces NaN assortativity (division by zero path)."""
+    G = nx.Graph()
+    G.add_node(0)
+    m = compute_graph_metrics(G)
+    assert "degree_assortativity" in m
+
+
+# ---------------------------------------------------------------------------
+# list_connectivity_measures from __init__
+# ---------------------------------------------------------------------------
+
+def test_list_fmri_measures():
+    import braphin
+    measures = braphin.list_fmri_connectivity_measures()
+    assert isinstance(measures, list)
+    assert "pearson_correlation" in measures
+
+
+def test_list_eeg_measures_returns_list():
+    import braphin
+    measures = braphin.list_eeg_connectivity_measures()
+    assert isinstance(measures, list)

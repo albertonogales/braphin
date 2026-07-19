@@ -208,3 +208,35 @@ def test_validate_fmri_nifti_rejects_3d():
     img_3d = nib.Nifti1Image(np.zeros((4, 4, 4)), np.eye(4))
     with pytest.raises(BRAPHINFormatError):
         validate_fmri_nifti(img_3d)
+
+
+# ---------------------------------------------------------------------------
+# Extension mismatch
+# ---------------------------------------------------------------------------
+
+def test_load_csv_wrong_extension_raises(tmp_path):
+    p = tmp_path / "data.tsv"
+    p.write_text("1\t2\n3\t4\n")
+    with pytest.raises(BRAPHINInputError, match="csv"):
+        load_csv_file(p)
+
+
+def test_load_tsv_wrong_extension_raises(tmp_path):
+    p = tmp_path / "data.csv"
+    p.write_text("1,2\n3,4\n")
+    with pytest.raises(BRAPHINInputError, match="tsv"):
+        load_tsv_file(p)
+
+
+def test_load_npy_corrupt_raises(tmp_path):
+    p = tmp_path / "corrupt.npy"
+    p.write_bytes(b"this is not a npy file at all!!!")
+    with pytest.raises(BRAPHINFormatError):
+        load_npy_file(p)
+
+
+def test_load_nifti_corrupt_raises(tmp_path):
+    p = tmp_path / "bad.nii"
+    p.write_bytes(b"not a nifti file")
+    with pytest.raises(BRAPHINFormatError):
+        load_nifti_file(p)

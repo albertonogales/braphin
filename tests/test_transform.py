@@ -200,3 +200,101 @@ def test_no_atlas_raises(denoise_bundle):
     t = TransformBRAPHINData(denoise_bundle, atlas_data=None, config=AtlasConfig())
     with pytest.raises(TransformationError):
         t.run()
+
+
+def test_none_denoise_bundle_raises():
+    from braphin.exceptions import TransformationError
+    t = TransformBRAPHINData(None, atlas_data=build_synthetic_atlas((4, 4, 4), num_rois=2))
+    with pytest.raises(TransformationError):
+        t.run()
+
+
+def test_denoise_bundle_missing_data_raises():
+    from braphin.denoise import BRAPHINDenoiseBundle
+    from braphin.exceptions import TransformationError
+    bundle = BRAPHINDenoiseBundle(denoised_data=None, voxel_time_series=None)
+    t = TransformBRAPHINData(bundle, atlas_data=build_synthetic_atlas((4, 4, 4), num_rois=2))
+    with pytest.raises(TransformationError):
+        t.run()
+
+
+def test_denoise_bundle_3d_data_raises(fmri_array):
+    from braphin.denoise import BRAPHINDenoiseBundle
+    from braphin.exceptions import TransformationError
+    bundle = BRAPHINDenoiseBundle(
+        denoised_data=fmri_array[:, :, :, 0],  # 3D slice
+        voxel_time_series=None,
+    )
+    t = TransformBRAPHINData(bundle, atlas_data=build_synthetic_atlas((8, 8, 8), num_rois=2))
+    with pytest.raises(TransformationError):
+        t.run()
+
+
+def test_atlas_from_auxiliary_files(denoise_bundle, spatial_shape):
+    import dataclasses
+    atlas = build_synthetic_atlas(spatial_shape, num_rois=3)
+    bundle = dataclasses.replace(
+        denoise_bundle,
+        auxiliary_files={"my_atlas.nii": atlas},
+    )
+    t = TransformBRAPHINData(bundle, config=AtlasConfig())
+    result = t.run()
+    assert result.roi_time_series is not None
+    assert result.roi_time_series.shape[0] == 3
+
+
+def test_display_info_no_crash(denoise_bundle, atlas_array, caplog):
+    import logging
+    t = TransformBRAPHINData(denoise_bundle, atlas_data=atlas_array)
+    result = t.run()
+    with caplog.at_level(logging.INFO):
+        t.display_info(result)
+
+
+def test_coerce_atlas_nifti_image(denoise_bundle, atlas_array, fmri_affine):
+    import nibabel as nib
+    img = nib.Nifti1Image(atlas_array.astype(np.float32), fmri_affine)
+    t = TransformBRAPHINData(denoise_bundle, atlas_data=img)
+    result = t.run()
+    assert result.roi_time_series is not None
+
+
+def test_coerce_atlas_unsupported_type_raises(denoise_bundle):
+    from braphin.exceptions import AtlasError
+    t = TransformBRAPHINData(denoise_bundle, atlas_data="not_an_atlas")
+    with pytest.raises((AtlasError, Exception)):
+        t.run()
+
+
+def test_validate_invalid_atlas_name_raises(denoise_bundle, atlas_array):
+    from braphin.exceptions import TransformationError, AtlasError
+    t = TransformBRAPHINData(
+        denoise_bundle,
+        atlas_data=atlas_array,
+        config=AtlasConfig(atlas_name="invalid_atlas_xyz"),
+    )
+    with pytest.raises((TransformationError, AtlasError)):
+        t.run()
+
+
+def test_named_atlas_aal_labels_from_name_map(denoise_bundle, tmp_path, monkeypatch):
+    """TransformBRAPHINData with atlas_name='aal' uses the ROI name map for labels.
+
+    Uses a temporary centroid cache directory so the test never overwrites
+    the bundled atlas_centroids/aal_centroids.json.
+    """
+    import braphin.transform as _tx_mod
+
+    # Redirect centroid cache writes to a temp directory.
+    _real_get_dir = _tx_mod.TransformBRAPHINData._get_centroid_layout_dir
+
+    def _tmp_dir(self):
+        return tmp_path
+
+    monkeypatch.setattr(_tx_mod.TransformBRAPHINData, "_get_centroid_layout_dir", _tmp_dir)
+
+    t = TransformBRAPHINData(denoise_bundle, config=AtlasConfig(atlas_name="aal"))
+    result = t.run()
+    assert result.roi_time_series is not None
+    # Labels for AAL come from the roi_name_map (not generic ROI_N)
+    assert any("_" in label for label in result.roi_labels)

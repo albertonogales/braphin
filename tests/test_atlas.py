@@ -146,3 +146,27 @@ def test_get_default_atlas_path_returns_path():
 def test_get_default_atlas_path_unsupported_raises():
     with pytest.raises(AtlasError):
         get_default_atlas_path("nonexistent_atlas")
+
+
+# ---------------------------------------------------------------------------
+# resolve_supported_atlas_path
+# ---------------------------------------------------------------------------
+
+def test_resolve_supported_atlas_path_default():
+    from braphin.atlas import resolve_supported_atlas_path
+    p = resolve_supported_atlas_path("aal")
+    assert p.exists()
+
+
+def test_resolve_supported_atlas_path_explicit(tmp_path):
+    from braphin.atlas import resolve_supported_atlas_path
+    fake = tmp_path / "my_atlas.nii.gz"
+    fake.write_bytes(b"placeholder")
+    p = resolve_supported_atlas_path("aal", atlas_path=str(fake))
+    assert p == fake
+
+
+def test_resolve_supported_atlas_path_bad_explicit_raises():
+    from braphin.atlas import resolve_supported_atlas_path
+    with pytest.raises(AtlasError, match="does not exist"):
+        resolve_supported_atlas_path("aal", atlas_path="/nonexistent/path/atlas.nii.gz")

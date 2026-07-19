@@ -197,3 +197,79 @@ def test_bandpass_in_applied_steps(preprocess_bundle, num_timepoints):
 def test_none_bundle_raises():
     with pytest.raises(DenoisingError):
         DenoiseBRAPHINData(BRAPHINPreprocessBundle()).run()
+
+
+# ---------------------------------------------------------------------------
+# Bandpass + confound regression together
+# ---------------------------------------------------------------------------
+
+def test_bandpass_and_confound_regression(preprocess_bundle, num_timepoints):
+    """Bandpass filtering of confounds runs when both bandpass and regression are on."""
+    rng = np.random.default_rng(7)
+    confounds = rng.random((num_timepoints, 3)).astype(np.float32)
+    aux = {"confounds_timeseries.tsv": confounds}
+    result = _run_denoise(
+        preprocess_bundle,
+        aux_files=aux,
+        regress_confounds=True,
+        apply_bandpass=True,
+        tr=2.0,
+    )
+    assert "bandpass_filtering" in result.applied_steps
+    assert "confound_regression" in result.applied_steps
+
+
+def test_bandpass_with_no_confounds_still_filters(preprocess_bundle):
+    """When regression is requested but no confound file matches, bandpass still runs."""
+    result = _run_denoise(
+        preprocess_bundle,
+        aux_files={"irrelevant.tsv": np.zeros((10, 3), dtype=np.float32)},
+        regress_confounds=True,
+        apply_bandpass=True,
+        tr=2.0,
+    )
+    assert "bandpass_filtering" in result.applied_steps
+
+
+# ---------------------------------------------------------------------------
+# Fallback confound pattern matching
+# ---------------------------------------------------------------------------
+
+def test_fallback_motion_pattern(preprocess_bundle, num_timepoints):
+    """Confound is found via fallback 'motion' pattern when 'confound' is absent."""
+    rng = np.random.default_rng(11)
+    confounds = rng.random((num_timepoints, 2)).astype(np.float32)
+    result = _run_denoise(
+        preprocess_bundle,
+        aux_files={"motion_params.tsv": confounds},
+        regress_confounds=True,
+    )
+    assert "confound_regression" in result.applied_steps
+
+
+# ---------------------------------------------------------------------------
+# display_info
+# ---------------------------------------------------------------------------
+
+def test_display_info_no_crash(preprocess_bundle, caplog):
+    import logging
+    cfg = DenoiseConfig(regress_confounds=False, apply_scrubbing=False, apply_bandpass=False)
+    model = DenoiseBRAPHINData(preprocess_bundle, cfg)
+    bundle = model.run()
+    with caplog.at_level(logging.INFO):
+        model.display_info(bundle)
+
+
+def test_display_info_with_steps(preprocess_bundle, num_timepoints, caplog):
+    import logging
+    rng = np.random.default_rng(5)
+    confounds = rng.random((num_timepoints, 2)).astype(np.float32)
+    cfg = DenoiseConfig(regress_confounds=True, apply_bandpass=True, tr=2.0)
+    bundle = dataclasses.replace(
+        preprocess_bundle,
+        auxiliary_files={"confounds_timeseries.tsv": confounds},
+    )
+    model = DenoiseBRAPHINData(bundle, cfg)
+    result = model.run()
+    with caplog.at_level(logging.INFO):
+        model.display_info(result)
