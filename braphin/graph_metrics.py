@@ -4,37 +4,6 @@ Graph-theoretic metrics for brain connectivity networks.
 All metrics operate on a NetworkX Graph (or DiGraph) built from a connectivity
 matrix.  For directed measures the graph is used as-is; for all undirected
 measures a symmetric, self-loop-free copy is produced internally.
-
-Metric catalogue
-----------------
-Network-level scalars
-    density                 : fraction of possible edges present
-    transitivity            : global clustering coefficient
-    average_clustering      : mean local clustering coefficient
-    global_efficiency       : mean inverse shortest path length (Latora 2001)
-    local_efficiency        : mean sub-graph efficiency (Latora 2001)
-    average_path_length     : mean shortest path (largest connected component)
-    degree_assortativity    : Pearson r of degree over connected pairs
-    small_world_sigma       : (C/C_rand) / (L/L_rand)  — σ > 1 → small-world
-    modularity              : best modularity Q via greedy community detection
-    rich_club_coefficient   : dict {k: Φ(k)} for all existing degree values
-
-Node-level dicts {node_label: value}
-    degree_centrality       : fraction of nodes each node connects to
-    betweenness_centrality  : fraction of shortest paths through each node
-    eigenvector_centrality  : influence weighted by neighbours' influence
-    closeness_centrality    : inverse mean shortest path from node to all others
-    node_strength           : sum of edge weights per node
-    degree                  : unweighted number of neighbours per node
-
-References
-----------
-Rubinov & Sporns (2010). Complex network measures of brain connectivity:
-    uses and interpretations. NeuroImage, 52(3), 1059-1069.
-Latora & Marchiori (2001). Efficient behavior of small-world networks.
-    Phys. Rev. Lett., 87(19), 198701.
-Newman (2004). Fast algorithm for detecting community structure in networks.
-    Phys. Rev. E, 69, 066133.
 """
 
 from __future__ import annotations
@@ -77,17 +46,11 @@ def _largest_cc(G: nx.Graph) -> nx.Graph:
 
 def compute_modularity(G: nx.Graph) -> float:
     """
-    Estimate the network modularity *Q* using the greedy Louvain-style community
-    detection provided by NetworkX (``greedy_modularity_communities``).
-
-    Modularity measures the degree to which a network can be partitioned into
-    densely connected communities. Values typically lie in [0, 1]; higher values
-    indicate stronger community structure.
+    Estimate the network modularity Q via greedy community detection.
 
     Parameters
     ----------
     G : NetworkX Graph
-        The brain connectivity graph (undirected, self-loop-free).
 
     Returns
     -------
@@ -108,14 +71,7 @@ def compute_modularity(G: nx.Graph) -> float:
 
 def compute_rich_club_coefficient(G: nx.Graph) -> dict[int, float]:
     """
-    Compute the rich-club coefficient Φ(k) for all degree values k present in
-    the graph.
-
-    Φ(k) = (edges among nodes with degree > k) /
-            (max possible edges among those nodes)
-
-    Values near 1 at high *k* indicate that high-degree hub nodes preferentially
-    connect to each other — a hallmark of the healthy brain's hub architecture.
+    Compute the rich-club coefficient Φ(k) for all degree values k present in the graph.
 
     Parameters
     ----------
@@ -145,30 +101,18 @@ def compute_rich_club_coefficient(G: nx.Graph) -> dict[int, float]:
 
 def compute_graph_metrics(G: nx.Graph) -> dict[str, object]:
     """
-    Compute a comprehensive set of graph-theoretic metrics on a brain
-    connectivity graph.
-
-    All undirected metrics work on an undirected, self-loop-free copy of *G*.
-    Directed graphs are accepted but are symmetrised for undirected metrics.
+    Compute a standard set of graph-theoretic metrics on a brain connectivity graph.
 
     Parameters
     ----------
     G : NetworkX Graph or DiGraph
-        A brain connectivity graph (nodes = ROIs, edges = connectivity weights).
+        Nodes = ROIs, edges = connectivity weights.
 
     Returns
     -------
     metrics : dict
-        See module docstring for the full list of keys and their interpretations.
-
-    Notes
-    -----
-    *average_path_length* and *small_world_sigma* fall back to the largest
-    connected component when the graph is disconnected, and are NaN if fewer
-    than 2 nodes are reachable.
-
-    *eigenvector_centrality* falls back to NaN per node when power iteration
-    does not converge.
+        Network-level scalars and node-level dicts; disconnected graphs fall back
+        to the largest connected component for path-length measures.
     """
     G_clean = _undirected_clean(G)
     n = G_clean.number_of_nodes()

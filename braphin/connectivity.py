@@ -21,37 +21,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BRAPHINConnectivityBundle:
-    """
-    Output bundle of the connectivity modelling stage.
-
-    Fields
-    ------
-    fmri_path : str or None
-        Path to the original fMRI file.
-    original_metadata : dict or None
-        Metadata inherited from the input stage.
-    preprocess_metadata : dict or None
-        Metadata inherited from the preprocessing stage.
-    denoise_metadata : dict or None
-        Metadata inherited from the denoising stage.
-    transform_metadata : dict or None
-        Metadata inherited from the atlas parcellation stage.
-    atlas_name : str or None
-        Logical name of the atlas used.
-    roi_labels : list of str
-        Labels for each ROI.
-    roi_time_series : ndarray (N, T) or None
-        Original ROI × time matrix passed to connectivity computation.
-    connectivity_matrix : ndarray (N, N) or None
-        Pairwise connectivity matrix.
-    applied_steps : list of str
-        Steps actually executed (e.g. ``"pearson_correlation"``,
-        ``"threshold"``).
-    pending_steps : list of str
-        Steps requested but deferred (e.g. ``"windowed_dynamic_connectivity"``).
-    connectivity_metadata : dict
-        Traceability information (method, shape, statistics, …).
-    """
+    """Output bundle of the connectivity modelling stage."""
 
     fmri_path: str | None = None
     original_metadata: dict[str, object] | None = None
@@ -76,22 +46,7 @@ def _compute_sliding_window_dfc(
     tr: float,
     step_size: float | None = None,
 ):
-    """
-    Compute sliding-window dynamic functional connectivity (dFC).
-
-    Parameters
-    ----------
-    roi_time_series : ndarray (N, T)
-    strategy        : ConnectivityStrategy instance
-    window_size     : window duration in seconds
-    tr              : repetition time in seconds
-    step_size       : step between windows in seconds; defaults to window_size / 2.
-
-    Returns
-    -------
-    dynamic_matrices : ndarray (n_windows, N, N)
-    window_centers   : list[float], centre time of each window in seconds
-    """
+    """Compute sliding-window dynamic functional connectivity (dFC)."""
     N, T = roi_time_series.shape
     window_samples = int(round(window_size / tr))
     if step_size is None:
@@ -137,14 +92,7 @@ def _compute_sliding_window_dfc(
 
 
 class ModelBRAPHINConnectivityData:
-    """
-    Stage 5 of the BRAPHIN pipeline: functional connectivity modelling.
-
-    Accepts an :class:`~braphin.transform.BRAPHINTransformBundle`, selects the
-    requested connectivity strategy, computes the ROI × ROI matrix, optionally
-    applies an absolute threshold, and returns an
-    :class:`BRAPHINConnectivityBundle`.
-    """
+    """Stage 5 of the BRAPHIN pipeline: functional connectivity modelling."""
 
     def __init__(
         self,
@@ -155,15 +103,7 @@ class ModelBRAPHINConnectivityData:
         self.config = config if config is not None else ConnectivityConfig()
 
     def run(self) -> BRAPHINConnectivityBundle:
-        """
-        Execute the connectivity modelling stage.
-
-        Returns
-        -------
-        BRAPHINConnectivityBundle
-            Bundle containing the connectivity matrix, applied steps, and
-            traceability metadata.
-        """
+        """Execute the connectivity modelling stage."""
         self._validate_transform_bundle()
 
         roi_time_series = np.array(

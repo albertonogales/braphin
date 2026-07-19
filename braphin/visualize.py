@@ -1,10 +1,6 @@
 """
 BRAPHIN visualisation helpers — reuse EEGraph's draw_graph unchanged.
 
-Both functions are exact copies of the methods in ``eegraph.graph.Graph``
-(``visualize_html`` / ``visualize_png``).  The underlying ``draw_graph``
-function is imported directly from ``eegraph.tools`` — no re-implementation.
-
 Usage
 -----
     from braphin import build_graph_from_matrix, visualize_html, visualize_png
@@ -30,9 +26,6 @@ def visualize_html(graph, name: str, auto_open: bool = True) -> None:
     """
     Save an interactive Plotly graph of the connectivity network as HTML.
 
-    Reuses ``eegraph.tools.draw_graph`` verbatim — identical to
-    ``eegraph.graph.Graph.visualize_html``.
-
     Parameters
     ----------
     graph : NetworkX Graph
@@ -57,9 +50,6 @@ def visualize_png(graph, name: str) -> None:
     """
     Save the connectivity network graph as a PNG image.
 
-    Reuses ``eegraph.tools.draw_graph`` verbatim — identical to
-    ``eegraph.graph.Graph.visualize_png``.
-
     Parameters
     ----------
     graph : NetworkX Graph
@@ -78,14 +68,7 @@ def visualize_png(graph, name: str) -> None:
 
 
 def _infer_lr_partner(label):
-    """
-    Attempt to infer the left/right partner of an ROI from its name.
-
-    Covered cases:
-    - AAL: Precentral_L <-> Precentral_R
-    - Left/Right variants
-    - Returns None if no pattern is matched.
-    """
+    """Infer the left/right partner of an ROI from its name; returns None if unmatched."""
     label = str(label)
 
     patterns = [
@@ -105,18 +88,7 @@ def _infer_lr_partner(label):
 
 
 def _build_symmetric_axial_layout(roi_centroids_3d):
-    """
-    Build a symmetric axial projection for visualisation purposes only.
-
-    Important:
-    - Does NOT modify the real 3D centroids of the atlas.
-    - Returns:
-        * pos2d: symmetric (x, y) positions for drawing
-        * depth: symmetric z depth for colouring
-    - Works well with AAL by name (_L/_R).
-    - For atlases without real anatomical names (e.g. ROI_1...ROI_n),
-      performs automatic left/right matching using proximity in (y, z).
-    """
+    """Build a symmetric axial (top-view) 2-D layout for visualisation; does not modify 3D centroids."""
     if not roi_centroids_3d:
         return {}, {}
 
@@ -204,13 +176,7 @@ def _build_symmetric_axial_layout(roi_centroids_3d):
 
 
 def _build_symmetric_coronal_layout(roi_centroids_3d):
-    """
-    Build a symmetric coronal projection for visualisation purposes only.
-
-    Returns:
-    - pos2d: symmetric (x, z) positions for drawing
-    - depth: symmetric y depth for colouring
-    """
+    """Build a symmetric coronal (front-view) 2-D layout for visualisation; does not modify 3D centroids."""
     if not roi_centroids_3d:
         return {}, {}
 

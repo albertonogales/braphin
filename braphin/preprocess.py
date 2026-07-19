@@ -13,30 +13,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BRAPHINPreprocessBundle:
-    """
-    Data structure representing the output of the preprocessing phase.
-
-    Fields:
-    - fmri_path: path to the original fMRI file
-    - original_metadata: basic metadata obtained during loading
-    - preprocessed_data: preprocessed 4-D array
-    - voxel_time_series: 2-D representation with shape (num_voxels, num_timepoints)
-    - auxiliary_files: auxiliary files inherited from the input bundle
-    - applied_steps: steps that were actually executed
-    - pending_steps: Always empty. Retained for backward compatibility; all
-                     preprocessing steps are fully implemented.
-    - preprocess_metadata: information useful for debugging and traceability
-    - motion_params: array (T, 6) with estimated rigid-body parameters,
-                     or None if motion correction was not applied.
-                     World-space rigid-body parameters mapping moving→reference.
-                     Columns: [tx, ty, tz, rx, ry, rz] where translations are
-                     in mm (same units as the NIfTI affine) and rotations are
-                     in radians.  Negate before using as confound regressors,
-                     or use ``get_motion_confounds(bundle)`` which returns the
-                     negated version.
-    - outlier_mask: boolean array (T,) marking outlier volumes,
-                    or None if outlier detection was not applied
-    """
+    """Output bundle from the preprocessing phase."""
 
     fmri_path: str | None = None
     original_metadata: dict[str, object] | None = None
@@ -51,17 +28,7 @@ class BRAPHINPreprocessBundle:
 
 
 class PreprocessBRAPHINData:
-    """
-    Main preprocessing class for BRAPHIN.
-
-    Implemented steps (in execution order):
-    1. NaN/inf cleanup (always active)
-    2. Slice-timing correction (apply_slice_timing=True; requires tr)
-    3. Motion correction (apply_motion_correction=True)
-    4. Outlier detection / scrubbing (apply_outlier_detection=True)
-    5. Spatial smoothing (apply_smoothing=True)
-    6. Per-voxel temporal z-score normalisation (apply_voxel_zscore=True; disabled by default)
-    """
+    """Main preprocessing pipeline for BRAPHIN fMRI data."""
 
     def __init__(
         self,
@@ -192,18 +159,7 @@ class PreprocessBRAPHINData:
     # --------------------------------------------------------------------------
 
     def _apply_slice_timing_correction(self, fmri_data: np.ndarray) -> np.ndarray:
-        """
-        Corrects for the staggered acquisition of slices within each TR using
-        linear interpolation.  Every slice's time series is shifted to the
-        reference slice acquisition time.
-
-        Requires:
-        - config.tr  (float, seconds)  -- raises PreprocessingError if None.
-
-        Config fields used:
-        - slice_order: "sequential" (default) or "interleaved"
-        - slice_timing_ref_slice: reference slice index (0 = first, -1 = middle)
-        """
+        """Correct for staggered slice acquisition by interpolating each slice's time series to the reference slice time."""
         if self.config.tr is None:
             raise PreprocessingError(
                 "Slice-timing correction requires 'tr' to be set in PreprocessConfig "
@@ -271,32 +227,7 @@ class PreprocessBRAPHINData:
     # --------------------------------------------------------------------------
 
     def _apply_motion_correction(self, fmri_data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Realigns each volume to the first volume (volume 0) using 6-parameter
-        rigid-body registration (3 translations + 3 rotations) in world (mm)
-        space.
-
-        Algorithm:
-        - The NIfTI affine (voxel→world mapping) is used to parameterise the
-          rigid-body motion in physical mm space.  Translations are in mm;
-          rotations are in radians.
-        - For each volume t >= 1, scipy.optimize.minimize (Powell's method) finds
-          the parameters [tx, ty, tz, rx, ry, rz] that minimise the sum of
-          squared voxel-wise differences between the transformed volume and the
-          reference.
-        - The forward world-space transform is:
-              T_world = T_translation @ R_z @ R_y @ R_x
-          scipy.ndimage.affine_transform needs the output→input mapping in voxel
-          space, i.e. the composed inverse:
-              T_map = affine_inv @ inv(T_world) @ affine
-        - Rotation is applied about the world-space volume centre.
-
-        Returns:
-        - corrected: float32 ndarray (X, Y, Z, T)
-        - motion_params: float64 ndarray (T, 6)
-          columns: [tx_mm, ty_mm, tz_mm, rx_rad, ry_rad, rz_rad]
-          (world-space rigid-body parameters mapping moving→reference)
-        """
+        """Realign each volume to volume 0 via 6-DOF rigid-body registration. Returns (corrected, motion_params (T, 6))."""
         from scipy.ndimage import affine_transform
         from scipy.optimize import minimize
 
@@ -318,11 +249,6 @@ class PreprocessBRAPHINData:
         def _build_T_world(
             tx: float, ty: float, tz: float, rx: float, ry: float, rz: float
         ) -> np.ndarray:
-            """Build 4×4 world-space rigid-body forward transform.
-
-            Rotation is applied about the world-space volume centre, then the
-            translation is added.  Order: R_z @ R_y @ R_x (X applied first).
-            """
             cx, sx = np.cos(rx), np.sin(rx)
             cy, sy = np.cos(ry), np.sin(ry)
             cz, sz = np.cos(rz), np.sin(rz)
@@ -390,26 +316,7 @@ class PreprocessBRAPHINData:
         fmri_data: np.ndarray,
         motion_params: np.ndarray | None,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Detects outlier volumes using DVARS and optionally FD, then handles
-        them according to config.scrubbing_strategy.
-
-        DVARS_t = sqrt( mean( (Y_t - Y_{t-1})^2 ) )  for t >= 1; DVARS_0 = 0.
-
-        Outlier threshold = median(DVARS) + config.outlier_threshold_dvars x IQR(DVARS).
-
-        FD is computed when motion_params is available:
-        FD_t = sum |delta_p_t|  (translations in voxels, rotations in rad x 50mm).
-
-        Scrubbing strategies:
-        - "interpolate": replace outlier volumes with linear interpolation from
-          the nearest clean volumes on each side.
-        - "mark": record outliers in the mask but do not modify the data.
-
-        Returns:
-        - cleaned: float32 ndarray (X, Y, Z, T)
-        - outlier_mask: bool ndarray (T,)
-        """
+        """Detect outlier volumes via DVARS (and optionally FD) and scrub per config.scrubbing_strategy."""
         X, Y, Z, T = fmri_data.shape
         flat = fmri_data.reshape(-1, T).astype(np.float64)  # (V, T)
 
@@ -466,17 +373,7 @@ class PreprocessBRAPHINData:
     # --------------------------------------------------------------------------
 
     def _normalize_data(self, fmri_data: np.ndarray) -> np.ndarray:
-        """
-        Per-voxel temporal z-score normalisation.
-
-        For each voxel (x, y, z), subtracts its mean across time and divides by
-        its standard deviation across time.  Voxels with std == 0 (constant
-        signal) are left unchanged (effectively dividing by 1).
-
-        This is the standard normalisation for fMRI time-series analysis and is
-        preferable to global z-scoring, which conflates spatial and temporal
-        variance.
-        """
+        """Apply per-voxel temporal z-score normalisation; zero-variance voxels are left unchanged."""
         mean = fmri_data.mean(axis=3, keepdims=True)
         std = fmri_data.std(axis=3, keepdims=True)
         # Avoid division by zero for constant-signal voxels
@@ -488,15 +385,7 @@ class PreprocessBRAPHINData:
     # --------------------------------------------------------------------------
 
     def _apply_spatial_smoothing(self, fmri_data: np.ndarray) -> np.ndarray:
-        """
-        Applies an isotropic Gaussian smoothing kernel to each 3-D volume.
-
-        The FWHM (config.smoothing_fwhm, in mm) is converted to sigma in voxels:
-            sigma_vox[i] = (FWHM / (2 sqrt(2 ln 2))) / voxel_size_mm[i]
-
-        Voxel sizes are read from the NIfTI header zooms.  If unavailable,
-        2 mm isotropic is assumed.
-        """
+        """Apply isotropic Gaussian smoothing using config.smoothing_fwhm (mm) and voxel sizes from the NIfTI header."""
         from scipy.ndimage import gaussian_filter
 
         fwhm = float(self.config.smoothing_fwhm)
@@ -604,23 +493,7 @@ class PreprocessBRAPHINData:
 
 
 def get_motion_confounds(preprocess_bundle: BRAPHINPreprocessBundle) -> np.ndarray:
-    """
-    Return motion parameters suitable for confound regression.
-
-    The stored ``motion_params`` represent the rigid-body transform that
-    aligns each volume to the reference.  To regress out head-motion
-    artefacts, the *inverse* (negated) parameters are required.
-
-    Parameters
-    ----------
-    preprocess_bundle : BRAPHINPreprocessBundle
-
-    Returns
-    -------
-    ndarray (T, 6)
-        Motion parameters negated for use as confound regressors.
-        Columns: [-tx, -ty, -tz, -rx, -ry, -rz] in mm and radians.
-    """
+    """Return motion parameters negated for confound regression (T × 6, columns in mm and radians)."""
     if preprocess_bundle.motion_params is None:
         raise PreprocessingError(
             "No motion parameters available. "

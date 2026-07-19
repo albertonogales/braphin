@@ -232,15 +232,7 @@ def _normalized_cross_correlation(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 
 def _cross_correlation_coef(x: np.ndarray, y: np.ndarray) -> float:
-    """
-    Compute the scalar cross-correlation coefficient, reproducing the
-    Cross_correlation_Estimator logic from EEGraph.
-
-    The function returns the **mean** of normalised cross-correlation values
-    from lag 0 to lag = floor(0.1 · T), where T is the number of timepoints.
-    This is a scalar summary adapted from the EEGraph library; it is not the
-    peak cross-correlation.
-    """
+    """Return the mean normalised cross-correlation over lags 0 to floor(0.1·T)."""
     Rxy_norm = _normalized_cross_correlation(x, y)
 
     lags = np.arange(-len(x) + 1, len(x))
@@ -256,21 +248,7 @@ def _cross_correlation_coef(x: np.ndarray, y: np.ndarray) -> float:
 
 
 def _corr_cross_correlation_coef(x: np.ndarray, y: np.ndarray) -> float:
-    """
-    Compute the scalar corrected cross-correlation coefficient, reproducing the
-    Corr_cross_correlation_Estimator logic from EEGraph.
-
-    This computes corCC = mean(R_xy(+lags)) − mean(R_xy(−lags)) over lags 1
-    to floor(0.1 · T). Specifically:
-
-    - Rxy_norm is split into negative-lag and positive-lag portions.
-    - corCC[k] = Rxy_norm(+k) − Rxy_norm(−k) for k = 1 … floor(0.1 · T).
-    - The scalar returned is the mean of that fragment.
-
-    This is a scalar adaptation of the Roebroeck et al. (2005) directed
-    connectivity measure; the original paper defines a full lag-dependent curve
-    rather than this scalar summary.
-    """
+    """Return mean(Rxy(+lags) - Rxy(-lags)) over lags 1 to floor(0.1·T)."""
     Rxy_norm = _normalized_cross_correlation(x, y)
 
     lags = np.arange(-len(x) + 1, len(x))
@@ -298,22 +276,7 @@ def _corr_cross_correlation_coef(x: np.ndarray, y: np.ndarray) -> float:
 
 
 def compute_cross_correlation(roi_time_series: np.ndarray) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using the
-    Cross_correlation_Estimator logic from EEGraph.
-
-    Important
-    ---------
-    - This measure can be asymmetric; symmetry is therefore NOT enforced.
-
-    Note
-    ----
-    This implementation uses nested Python loops over all ROI pairs and calls
-    scipy.signal.correlate for each pair. For an atlas with N ROIs the complexity
-    is O(N²·T·log T). For large atlases (e.g. Schaefer 400, N=400) this may take
-    several minutes. A vectorised FFT-based implementation is planned for a future
-    release.
-    """
+    """Compute the ROI × ROI connectivity matrix using cross-correlation (EEGraph convention)."""
     validate_roi_time_series(roi_time_series)
 
     num_rois = roi_time_series.shape[0]
@@ -336,22 +299,7 @@ def compute_cross_correlation(roi_time_series: np.ndarray) -> np.ndarray:
 
 
 def compute_corrected_cross_correlation(roi_time_series: np.ndarray) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using the
-    Corr_cross_correlation_Estimator logic from EEGraph.
-
-    Important
-    ---------
-    - This measure can be asymmetric; symmetry is therefore NOT enforced.
-
-    Note
-    ----
-    This implementation uses nested Python loops over all ROI pairs and calls
-    scipy.signal.correlate for each pair. For an atlas with N ROIs the complexity
-    is O(N²·T·log T). For large atlases (e.g. Schaefer 400, N=400) this may take
-    several minutes. A vectorised FFT-based implementation is planned for a future
-    release.
-    """
+    """Compute the ROI × ROI connectivity matrix using corrected cross-correlation (EEGraph convention)."""
     validate_roi_time_series(roi_time_series)
 
     num_rois = roi_time_series.shape[0]
@@ -467,27 +415,7 @@ def compute_coherence(roi_time_series: np.ndarray, tr: float) -> np.ndarray:
 
 
 def compute_imaginary_coherence(roi_time_series: np.ndarray, tr: float) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using signed imaginary coherence
-    (Nolte et al. 2004).
-
-    Signed imaginary coherence is the imaginary part of the complex coherency,
-    keeping the sign:
-
-        IC[i, j] = mean_f( Im(P_xy(f)) / sqrt(P_xx(f) * P_yy(f)) )
-
-    Because it is insensitive to zero-lag correlations it is robust to common
-    sources of spurious connectivity (e.g. motion artefacts).
-
-    The matrix is **antisymmetric**: IC(i, j) = −IC(j, i). The diagonal is 0.
-    Positive values indicate that ROI i leads ROI j in phase.
-
-    Parameters
-    ----------
-    roi_time_series : ndarray (N, T)
-    tr : float
-        Repetition time in seconds. Required; must be positive.
-    """
+    """Compute the ROI × ROI connectivity matrix using signed imaginary coherence (Nolte et al. 2004)."""
     validate_roi_time_series(roi_time_series)
     if tr is None or tr <= 0:
         raise ConnectivityError(
@@ -545,18 +473,7 @@ def compute_aec(roi_time_series: np.ndarray) -> np.ndarray:
 
 
 def compute_aec_orth(roi_time_series: np.ndarray) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using Orthogonalized AEC (AEC-c).
-
-    The orthogonalization step removes the zero-lag (spurious) component of
-    amplitude coupling by projecting each signal onto the direction orthogonal
-    to the other signal in the analytic representation:
-
-        x_orth = Im(x_a · ȳ_a) / |y_a|
-
-    The two directed AEC values (x orth. w.r.t. y, and y orth. w.r.t. x) are
-    averaged to yield a symmetric, undirected estimate (Hipp et al. 2012).
-    """
+    """Compute the ROI × ROI connectivity matrix using Orthogonalized AEC (AEC-c)."""
     validate_roi_time_series(roi_time_series)
 
     analytic = signal.hilbert(roi_time_series.astype(np.float64), axis=1)
@@ -609,15 +526,7 @@ def compute_mutual_information(
     roi_time_series: np.ndarray,
     n_bins: int = 10,
 ) -> np.ndarray:
-    """
-    Compute the ROI × ROI connectivity matrix using Mutual Information (MI).
-
-    MI captures non-linear statistical dependencies between signals, making it
-    more general than Pearson correlation. MI is estimated via a joint histogram
-    with ``n_bins`` bins per axis.
-
-    The matrix is symmetric. The diagonal contains MI(x, x) = H(x) (entropy).
-    """
+    """Compute the ROI × ROI connectivity matrix using Mutual Information (MI)."""
     validate_roi_time_series(roi_time_series)
 
     n_samples = roi_time_series.shape[1]
@@ -655,19 +564,7 @@ def _sync_likelihood_pair(
     tau: int = 1,
     pref: float = 0.05,
 ) -> float:
-    """
-    Estimate the Synchronisation Likelihood (SL) between two signals
-    (Stam & van Dijk 2002).
-
-    SL measures the probability that two simultaneously embedded time series
-    visit nearby states together, beyond what would be expected by chance.
-
-    Parameters
-    ----------
-    m    : embedding dimension (default 3)
-    tau  : time delay for embedding (default 1 sample)
-    pref : reference proportion (fraction of nearest neighbours; default 0.05)
-    """
+    """Estimate Synchronisation Likelihood between two signals (Stam & van Dijk 2002)."""
     embed_len = len(x) - (m - 1) * tau
     if embed_len < 10:
         return 0.0
@@ -822,30 +719,11 @@ def compute_granger_causality(
     model_order: int = 1,
 ) -> np.ndarray:
     """
-    Compute the ROI × ROI directed connectivity matrix using bivariate linear
-    Granger Causality (GC).
+    Compute the ROI × ROI directed connectivity matrix using bivariate Granger Causality.
 
-    GC from ROI j to ROI i is:
+    GC[i, j] = log( Var(ε_i | AR(i)) / Var(ε_i | ARX(i, j)) )
 
-        GC[i, j] = log( Var(ε_i | AR(i)) / Var(ε_i | ARX(i, j)) )
-
-    A positive value indicates that past values of j improve the linear
-    prediction of i beyond i's own past alone.
-
-    The matrix is **asymmetric** (directed). The diagonal is 0.
-
-    Parameters
-    ----------
-    model_order : int
-        Order of the AR / ARX models (number of past lags). Default 1.
-
-    Warning
-    -------
-    This implementation uses **bivariate (pairwise) Granger causality**, which does
-    not condition on third-variable influences. For network-level fMRI analysis,
-    bivariate GC is known to produce spurious connections when common drivers exist
-    (Ding et al. 2006). Prefer multivariate (conditional) GC for connectivity
-    graphs with more than ~5 ROIs.
+    The matrix is asymmetric (directed). The diagonal is 0.
     """
     validate_roi_time_series(roi_time_series)
 
@@ -981,20 +859,7 @@ def compute_transfer_entropy(
 
 
 def _fit_mvar(data: np.ndarray, order: int):
-    """
-    Fit a Multivariate AutoRegressive (MVAR) model of given order using OLS.
-
-    Parameters
-    ----------
-    data  : ndarray (N, T) — ROI × time matrix.
-    order : model order p.
-
-    Returns
-    -------
-    A_list : list of p coefficient matrices, each (N, N).
-             y(t) ≈ A_list[0] @ y(t-1) + ... + A_list[p-1] @ y(t-p)
-    Sigma  : noise covariance matrix (N, N).
-    """
+    """Fit a MVAR(order) model via OLS. Returns (A_list, Sigma) where A_list has p matrices of shape (N, N)."""
     N, T = data.shape
     T_eff = T - order
 

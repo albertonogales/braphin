@@ -10,18 +10,6 @@ slow5      :  0.010–0.027 Hz  (infra-slow oscillations)
 slow4      :  0.027–0.073 Hz  (canonical resting-state networks)
 slow3      :  0.073–0.167 Hz  (only accessible at TR ≤ 3 s)
 broadband  :  0.010–0.100 Hz  (standard Biswal 1995 resting-state range)
-
-Note
-----
-These are NOT EEG frequency bands (delta / theta / alpha / beta / gamma).
-EEG bands span 1–45 Hz; fMRI BOLD oscillations are entirely below 0.2 Hz.
-
-References
-----------
-Zuo et al. (2010). The oscillating brain: complex and reliable.
-    NeuroImage, 49(2), 1432-1445.
-Biswal et al. (1995). Functional connectivity in the motor cortex of resting
-    human brain using echo-planar MRI. Magn. Reson. Med., 34(4), 537-541.
 """
 
 from __future__ import annotations
@@ -221,12 +209,6 @@ def compute_all_bands_connectivity(
     -------
     dict {band_name: ndarray (N, N)}
         One connectivity matrix per successfully processed band.
-
-    Notes
-    -----
-    ``slow3`` (0.073–0.167 Hz) requires TR ≤ 3 s.  With TR = 2 s the
-    Nyquist is 0.25 Hz so slow3 is included.  With TR ≥ 3 s the Nyquist
-    is ≤ 0.167 Hz and slow3 will be skipped with a warning.
     """
     validate_roi_time_series(roi_time_series)
 

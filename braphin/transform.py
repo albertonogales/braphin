@@ -323,11 +323,7 @@ class TransformBRAPHINData:
             raise AtlasError("The atlas contains no valid ROI labels (all values are 0 or below).")
 
     def _get_valid_roi_ids(self, atlas_labels: np.ndarray) -> np.ndarray:
-        """
-        Return unique positive ROI label values from the atlas.
-
-        Convention: label 0 is background; all values > 0 are ROIs.
-        """
+        """Return unique positive ROI label values from the atlas (label 0 = background)."""
         roi_ids = np.asarray(np.unique(atlas_labels))
         roi_ids = np.asarray(roi_ids[roi_ids > 0])
 
@@ -337,14 +333,7 @@ class TransformBRAPHINData:
         return roi_ids
 
     def _build_roi_labels(self, roi_ids: np.ndarray) -> list[str]:
-        """
-        Build human-readable labels for each ROI.
-
-        Priority:
-        1. Manual ``roi_labels`` provided in ``AtlasConfig``
-        2. Anatomical names from the atlas registry (if atlas_name is set)
-        3. Generic fallback: ``ROI_<id>``
-        """
+        """Build human-readable labels for each ROI from config, atlas registry, or generic fallback."""
         if self.config.roi_labels is not None:
             if len(self.config.roi_labels) != len(roi_ids):
                 raise TransformationError(
@@ -506,13 +495,7 @@ class TransformBRAPHINData:
     def _resolve_or_build_canonical_roi_centroids(
         self, roi_ids: np.ndarray, roi_labels: list[str]
     ) -> tuple[dict[str, tuple[float, float, float]], str | None]:
-        """
-        Return subject-independent canonical centroids for the named atlas.
-
-        Centroids are computed from the original reference atlas associated
-        with ``atlas_name``, not from the atlas resampled to fMRI space.
-        Results are cached as JSON to avoid repeated computation.
-        """
+        """Return canonical centroids for the named atlas, loading from the JSON cache or computing and saving them."""
         if self.config.atlas_name is None:
             raise TransformationError("Cannot build canonical centroids when atlas_name is None.")
 
@@ -729,18 +712,8 @@ class TransformBRAPHINData:
         fmri_affine: np.ndarray,
         atlas_source: str,
     ) -> tuple[str, np.ndarray, bool, np.ndarray | None]:
-        """
-        Ensure the atlas is aligned to the fMRI voxel grid.
-
-        Returns
-        -------
-        atlas_source : str
-        atlas_labels : ndarray
-        atlas_resampled : bool
-        atlas_affine : ndarray or None
-            Affine used for centroid computation; None for raw ndarray inputs.
-        """
-        # Case 1: NIfTI-like image — compare affines and resample if needed.
+        """Ensure the atlas is aligned to the fMRI voxel grid, resampling if necessary."""
+        # NIfTI-like image — compare affines and resample if needed.
         if hasattr(atlas_data, "get_fdata") and hasattr(atlas_data, "affine"):
             atlas_img = atlas_data
 
@@ -763,7 +736,7 @@ class TransformBRAPHINData:
                 np.asarray(resampled_img.affine, dtype=float),
             )
 
-        # Case 2: raw ndarray — cannot resample without an affine.
+        # raw ndarray — cannot resample without an affine.
         atlas_labels = self._coerce_atlas_to_array(atlas_data)
         self._validate_atlas_labels(atlas_labels, spatial_shape)
         return atlas_source, atlas_labels, False, None

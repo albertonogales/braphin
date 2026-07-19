@@ -12,20 +12,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BRAPHINDenoiseBundle:
-    """
-    Data structure representing the output of the denoising phase.
-
-    Main fields:
-    - fmri_path: path to the original fMRI file
-    - original_metadata: metadata inherited from the input
-    - preprocess_metadata: metadata inherited from preprocessing
-    - denoised_data: 4D volume after denoising
-    - voxel_time_series: 2D denoised matrix (num_voxels, num_timepoints)
-    - auxiliary_files: auxiliary files inherited from preprocessing
-    - applied_steps: steps actually executed
-    - pending_steps: steps requested in config but not executed
-    - denoise_metadata: traceability information
-    """
+    """Output bundle of the denoising stage."""
 
     fmri_path: str | None = None
     original_metadata: dict[str, object] | None = None
@@ -39,18 +26,7 @@ class BRAPHINDenoiseBundle:
 
 
 class DenoiseBRAPHINData:
-    """
-    Main denoising class for BRAPHIN.
-
-    Implemented steps (in execution order, Lindquist et al. 2019):
-    1. Outlier scrubbing (apply_scrubbing=True)
-       Uses the outlier_mask from the preprocess bundle if available; otherwise
-       recomputes DVARS from the denoised signal.
-    2. Butterworth bandpass filtering (apply_bandpass=True; requires tr)
-       When both bandpass AND confound regression are enabled, the confounds
-       are bandpass-filtered with the same filter before OLS (Lindquist 2019).
-    3. Confound regression via ordinary least squares (regress_confounds=True)
-    """
+    """Applies scrubbing, bandpass filtering, and confound regression to a preprocessed fMRI bundle."""
 
     def __init__(
         self,
@@ -149,17 +125,7 @@ class DenoiseBRAPHINData:
         auxiliary_files: dict[str, object],
         num_timepoints: int,
     ) -> tuple[str | None, np.ndarray | None]:
-        """
-        Search auxiliary_files for a confound matrix whose row count matches
-        num_timepoints.
-        Continue searching if this file is incompatible; do not abort on the
-        first failure.
-
-        Search order:
-        1. Files whose name contains "confound" (standard BIDS pattern).
-        2. If none found, fall back to files containing "motion", "regressors",
-           "nuisance", or "timeseries" — a warning is emitted for these.
-        """
+        """Search auxiliary_files for a confound matrix matching num_timepoints rows."""
         _STANDARD_PATTERN = "confound"
         _FALLBACK_PATTERNS = ("motion", "regressors", "nuisance", "timeseries")
 
@@ -205,10 +171,7 @@ class DenoiseBRAPHINData:
         voxel_time_series: np.ndarray,
         confounds_matrix: np.ndarray,
     ) -> np.ndarray:
-        """
-        Remove the linear effect of confounds via OLS residuals.
-        voxel_time_series: (V, T) -- confounds_matrix: (T, K)
-        """
+        """Remove the linear effect of confounds via OLS residuals."""
         if voxel_time_series.ndim != 2:
             raise DenoisingError("The voxel x time signal must be a 2D matrix.")
         if confounds_matrix.ndim != 2:
@@ -251,15 +214,7 @@ class DenoiseBRAPHINData:
     # -------------------------------------------------------------------------
 
     def _apply_scrubbing(self, voxel_time_series: np.ndarray) -> tuple[np.ndarray, int]:
-        """
-        Interpolates (or removes) outlier volumes.
-
-        The outlier mask is taken from the preprocess bundle's outlier_mask
-        field if available (set by outlier_detection in PreprocessBRAPHINData).
-        If not, DVARS is recomputed from the current signal.
-
-        Returns (cleaned_vts, n_scrubbed).
-        """
+        """Interpolate outlier volumes identified by DVARS; returns (cleaned_vts, n_scrubbed)."""
         T = voxel_time_series.shape[1]
 
         # Use precomputed mask if available
@@ -359,15 +314,7 @@ class DenoiseBRAPHINData:
         return np.asarray(filtered, dtype=np.float32)
 
     def _apply_bandpass_filter(self, voxel_time_series: np.ndarray) -> np.ndarray:
-        """
-        Applies a zero-phase 4th-order Butterworth bandpass filter to every
-        voxel's time series.
-
-        Requires config.tr (seconds).  Raises DenoisingError if None.
-
-        Filter band: [config.bandpass_low, config.bandpass_high] Hz.
-        Both bounds must be strictly below the Nyquist frequency (0.5 / tr).
-        """
+        """Apply a zero-phase 4th-order Butterworth bandpass filter to every voxel time series."""
         from scipy.signal import sosfiltfilt
 
         if self.config.tr is None:

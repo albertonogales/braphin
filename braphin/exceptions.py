@@ -8,40 +8,19 @@ class BRAPHINError(Exception):
 
 
 class BRAPHINInputError(BRAPHINError):
-    """
-    Error related to data input.
-    Examples:
-    - unsupported file extension,
-    - non-existent file,
-    - invalid file combination,
-    - etc.
-    """
+    """Error related to data input."""
 
     pass
 
 
 class BRAPHINFormatError(BRAPHINError):
-    """
-    Error related to the internal format of the data.
-    Examples:
-    - a matrix that is not 2-D,
-    - an unexpected shape,
-    - a NIfTI image without the expected dimensions,
-    - etc.
-    """
+    """Error related to the internal format of the data."""
 
     pass
 
 
 class AtlasError(BRAPHINError):
-    """
-    Error related to the atlas.
-    Examples:
-    - unsupported atlas,
-    - missing atlas file,
-    - incompatible configuration,
-    - etc.
-    """
+    """Error related to the atlas."""
 
     pass
 
@@ -72,13 +51,6 @@ class TransformationError(BRAPHINError):
 
 
 class ConnectivityError(BRAPHINError):
-    """
-    Error related to connectivity computation.
-    Examples:
-    - no ROI time series available,
-    - incorrect dimensions,
-    - unsupported connectivity method,
-    - etc.
-    """
+    """Error related to connectivity computation."""
 
     pass

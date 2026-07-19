@@ -1,53 +1,15 @@
 """
-BRAPHIN
+BRAPHIN — multimodal brain connectivity library extending EEGraph.
 
-A multimodal brain connectivity library extending EEGraph.
+Supports fMRI (NIfTI, five-stage pipeline: Input → Preprocess → Denoise →
+Transform → Connectivity) and EEG (full EEGraph pipeline) through a unified
+``Graph`` entry point.
 
-Supported modalities
---------------------
-fMRI (NIfTI)
-    Five-stage pipeline: Input → Preprocess → Denoise → Transform → Connectivity.
-    Connectivity measures: pearson_correlation, partial_correlation, cross_correlation,
-    corr_cross_correlation, coherence, imag_coherence, lagged_coherence, aec, aec_orth,
-    mutual_information, sync_likelihood, granger_causality, transfer_entropy, pdc, psi.
-
-EEG
-    Full EEGraph pipeline accessed via the unified Graph class.
-    Connectivity measures: cross_correlation, pearson_correlation, squared_coherence,
-    imag_coherence, corr_cross_correlation, wpli, plv, pli, pli_bands, dtf,
-    power_spectrum, spectral_entropy, shannon_entropy.
-
-EEG utilities
--------------
-    load_deap_dat  — load a DEAP .dat file and return EEG data as an MNE object.
-
-Unified entry point (both modalities)
---------------------------------------
     from braphin import Graph
 
-    # EEG
-    g = Graph()
-    g.load_data("subject.edf", modality="eeg")
-    G, matrix = g.modelate(window_size=None, connectivity="plv", bands=["alpha"])
-
-    # fMRI
     g = Graph()
     g.load_data("subject.nii.gz", modality="fmri")
     G, matrix = g.modelate(window_size=None, connectivity="pearson_correlation")
-
-fMRI pipeline stages
---------------------
-    InputfMRIData          -> BRAPHINInputBundle
-    PreprocessBRAPHINData  -> BRAPHINPreprocessBundle
-    DenoiseBRAPHINData     -> BRAPHINDenoiseBundle
-    TransformBRAPHINData   -> BRAPHINTransformBundle
-    ModelBRAPHINConnectivityData -> BRAPHINConnectivityBundle
-
-EEG pipeline stages
--------------------
-    InputEEGData           -> EEGInputBundle
-    (windowing)            -> per-window connectivity matrices
-    ModelData              -> mean connectivity matrix + NetworkX graph
 """
 
 __version__ = "1.0.0"

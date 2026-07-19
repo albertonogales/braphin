@@ -57,17 +57,7 @@ def re_scaling(raw_data):
 
 
 def process_channel_names(channel_names):
-    """Process to obtain the electrode name from the channel name.
-    Parameters
-    ----------
-    channel_names : list
-        Channel names in the EEG.
-    
-    Returns
-    -------
-    channel_names : list
-        Proccessed channel names, containing only the name of the electrode.
-    """
+    """Strip prefix/suffix from raw channel names to get bare electrode labels."""
     
     channel_names = [(elem.split())[-1] for elem in channel_names]
     channel_names = [(elem.replace("-", " ").split())[0] for elem in channel_names]
@@ -76,25 +66,6 @@ def process_channel_names(channel_names):
 
 
 def calculate_time_intervals(data, sample_rate, sample_duration, seconds, sample_length):
-    """Process to split the data based on the window size or time intervals.
-    Parameters
-    ----------
-    data : array
-        Raw EEG signal; each row is one EEG channel, each column is data point.
-    sample_rate : float
-        Sample frequency used in the EEG (Hz). 
-    sample_duration : float
-        Duration of the EEG (seconds).
-    seconds : int or list
-        Can be of two types. int; a single value that determines the window size (seconds). list; a set of intervals, where each value is in (seconds). 
-    
-    Returns
-    -------
-    epochs : array
-        Array containing the data points according to window size, the number of rows will be (Number of Channels X Intervals).
-    steps : list
-        List with the intervals, pairs of (Start, End) values in data points (seconds x sample frequency).
-    """
     epochs = []
     
     #Obtain the steps using the time_stamps helper function. 
@@ -110,23 +81,6 @@ def calculate_time_intervals(data, sample_rate, sample_duration, seconds, sample
     return np.array(epochs, dtype="object"), steps, flag
                 
 def time_stamps(seconds, sample_rate, sample_length, sample_duration):
-    """Process to calculate the intervals based on the window size or time intervals.
-    Parameters
-    ----------
-    seconds : int or list
-        Can be of two types. int; a single value that determines the window size (seconds). list; a set of intervals, where each value is in (seconds).
-    sample_rate : float
-        Sample frequency used in the EEG (Hz).
-    sample_length : float
-        Sample length in data points (seconds x sample frequency).
-    sample_duration : float
-        Duration of the EEG (seconds).
-    
-    Returns
-    -------
-    intervals : list
-        List with the intervals, pairs of (Start, End) values in data points (seconds x sample frequency).
-    """
     
     intervals, i, flag = [] , 0, 0
     
@@ -181,17 +135,6 @@ def time_stamps(seconds, sample_rate, sample_length, sample_duration):
     return intervals, flag
 
 def input_bands(bands):
-    """Process to identify which bands does the user want to use.
-    Parameters
-    ----------
-    bands : string
-        String with the bands to use, separated by commas. 
-        
-    Returns
-    -------
-    wanted_bands : list
-        Boolean list, with 5 positions one for each frequency band.
-    """
     need_bands(bands)
     
     
@@ -210,21 +153,7 @@ def input_bands(bands):
     return wanted_bands
 
 def calculate_bands_fft(values, sample_rate, bands):
-    """Process to calculate the numpy fft for the snippets.
-    Parameters
-    ----------
-    values : array
-        Snippet of values for the signal.
-    sample_rate : float
-        Sample frequency used in the EEG (Hz).
-    
-    Returns
-    -------
-    fft_freq : list
-        Frequency bins for given FFT parameters.
-    fft_vals : ndarray
-        Values calculated with the Fast Fourier Transform.
-    """
+    """FFT the signal and return band-filtered time-domain arrays for each of the five standard bands."""
     bands_dict = {0: 'Delta', 1:'Theta', 2:'Alpha', 3:'Beta', 4:'Gamma'}
     
     fft_vals = np.fft.fft(values)
@@ -250,26 +179,9 @@ def calculate_bands_fft(values, sample_rate, bands):
 
 
 def obtain_frequency_bands(f,Y):
-    """Process to obtain the values for each frequency band.
-    Parameters
-    ----------
-    f : list
-        Frequency bins for given FFT parameters.
-    Y : ndarray
-        Array of values from which we divide into frequency bands. 
-    
-    Returns
-    -------
-    delta : array
-        Array with values within the ranges of delta band.
-    theta : array
-        Array with values within the ranges of theta band.
-    alpha : array
-        Array with values within the ranges of alpha band.
-    beta : array
-        Array with values within the ranges of beta band.
-    gamma : array
-        Array with values within the ranges of gamma band.
+    """Split an FFT spectrum into per-band complex arrays (delta/theta/alpha/beta/gamma).
+
+    Each output is a 91-point zero-padded array in the layout expected by ifft downstream.
     """
     
     delta_range = (1,4)
@@ -314,27 +226,7 @@ def obtain_frequency_bands(f,Y):
 
 
 def frequency_bands(f,Y):
-    """Process to obtain the values for each frequency band.
-    Parameters
-    ----------
-    f : list
-        Frequency bins for given FFT parameters.
-    Y : ndarray
-        Array of values from which we divide into frequency bands. 
-    
-    Returns
-    -------
-    delta : array
-        Array with values within the ranges of delta band.
-    theta : array
-        Array with values within the ranges of theta band.
-    alpha : array
-        Array with values within the ranges of alpha band.
-    beta : array
-        Array with values within the ranges of beta band.
-    gamma : array
-        Array with values within the ranges of gamma band.
-    """
+    """Slice Y into the five standard EEG bands using boolean indexing on f."""
     
     delta_range = (1,4)
     theta_range = (4,8)
@@ -351,21 +243,7 @@ def frequency_bands(f,Y):
     return delta, theta, alpha, beta, gamma
 
 def calculate_connectivity(data_intervals, steps, channels, sample_rate, connectivity):
-    """Process to calulate the correlation matrix.
-    Parameters
-    ----------
-    data_intervals : array
-        Array containing the data points according to window size, the number of rows will be (Number of Channels X Intervals).
-    steps : list
-        List with the intervals, pairs of (Start, End) values in data points (seconds x sample frequency).
-    channels: int
-        Number of channels in the EEG.
-    
-    Returns
-    -------
-    matrix : ndarray
-        Correlation matrix using cross correlation.
-    """
+    """Compute a connectivity matrix for each time interval using the given estimator."""
     #Calculate the number of intervals and create the matrix. 
     intervals = (len(steps))
     matrix = np.zeros(shape=(intervals, channels, channels))
@@ -503,14 +381,7 @@ def calculate_connectivity_single_channel_with_bands(data_intervals, sample_rate
 
 
 def make_graph(matrix, ch_names, threshold, directed = False):
-    """Process to create the networkX graphs.
-    Parameters
-    ----------
-    matrix : ndarray
-        Matrix containing all the correlation matrix.
-    ch_names : list
-        Channel names in the EEG.
-    """
+    """Build NetworkX graphs from connectivity matrices, adding an edge wherever the value exceeds threshold."""
     #The number of graphs will be the number of correlation matrixes. 
     num_graphs = len(matrix)
     print("Number of graphs created:", num_graphs)
@@ -567,24 +438,17 @@ def single_channel_graph(data, ch_names, channels, percentage_threshold, bands=N
     return G, np.array(matrix)
         
 def set_generic_node_positions(G):
-    """
-    Asigna posiciones genéricas a los nodos del grafo.
-
-    Esta función está pensada como fallback para grafos cuyos nodos no sean electrodos EEG reconocidos, por ejemplo ROIs de MRI.
-
-    Importante:
-    - solo se usará cuando no haya ningún nodo reconocible del mapa EEG.
-    """
+    # Fallback layout for graphs whose nodes are not recognized EEG electrodes (e.g. fMRI ROIs).
     G_layout = G.copy()
 
-    # Quitamos self-loops solo para calcular mejor el layout sin alterar el grafo real que se dibujará.
+    # Remove self-loops only for layout calculation; the original graph is not modified.
     G_layout.remove_edges_from(nx.selfloop_edges(G_layout))
 
     if G_layout.number_of_nodes() == 1:
         unico_nodo = list(G_layout.nodes())[0]
         pos = {unico_nodo: (0.0, 0.0)}
     elif G_layout.number_of_edges() > 0:
-        # Para el layout usamos el valor absoluto del peso para que el signo no deforme el posicionamiento.
+        # Use absolute weight so that negative values don't distort the spring layout.
         for u, v, data in G_layout.edges(data=True):
             peso = data.get("weight", 1.0)
             data["layout_weight"] = abs(float(peso))
@@ -597,7 +461,6 @@ def set_generic_node_positions(G):
     else:
         pos = nx.circular_layout(G_layout)
 
-    # Convertimos a tuplas normales de float
     pos = {
         node: (float(coords[0]), float(coords[1]))
         for node, coords in pos.items()
@@ -631,11 +494,7 @@ def get_visual_params(G):
     }
         
 def draw_graph(G):
-    """Process to create the networkX graphs.
-    Parameters
-    ----------
-    G : NetworkX graph
-    """
+    """Build a Plotly connectivity graph from a NetworkX graph."""
     directed = nx.is_directed(G)
 
     visual_params = get_visual_params(G)
@@ -645,8 +504,7 @@ def draw_graph(G):
     nodes = list(G.nodes())
     precomputed_pos = nx.get_node_attributes(G, "pos")
 
-    # Si todos los nodos ya traen posición precomputada (por ejemplo MRI),
-    # la respetamos y no entramos en la lógica EEG ni en el fallback genérico.
+    # If all nodes already have a precomputed position (e.g. fMRI), skip EEG layout logic.
     if len(nodes) > 0 and len(precomputed_pos) == len(nodes):
         clean_pos = {
             node: (float(precomputed_pos[node][0]), float(precomputed_pos[node][1]))
@@ -731,7 +589,7 @@ def draw_graph(G):
         known_nodes = [node for node in nodes if node in pos]
         unknown_nodes = [node for node in nodes if node not in pos]
     
-        # CASO 1: todos los nodos son desconocidos para el mapa EEG: usamos layout genérico (MRI / ROIs / otros grafos)
+        # No recognized EEG electrodes: use generic layout (fMRI ROIs, etc.)
         if len(nodes) > 0 and len(known_nodes) == 0:
             warnings.warn("No electrode positions recognized. Using generic layout for visualization.")
             set_generic_node_positions(G)
@@ -828,7 +686,7 @@ def get_edge_trace(G):
         x0, y0 = G.nodes[edge[0]]['pos']
         x1, y1 = G.nodes[edge[1]]['pos']
 
-        # Si existe otra arista entre los mismos nodos en dirección opuesta
+        # Offset antiparallel edges slightly so both are visible in directed graphs.
         if edge in edges_control:
             x0 = x0 - 0.05
             y0 = y0 + 0.05
@@ -841,16 +699,15 @@ def get_edge_trace(G):
         edge_x.extend([x0, x1, None])
         edge_y.extend([y0, y1, None])
 
-        # Grosor base de la arista
         base_width = G[edge[0]][edge[1]].get(
             "thickness",
             max(0.5, abs(float(G[edge[0]][edge[1]].get("weight", 1.0))) * 6)
         )
 
-        # Lo comprimimos mucho para que no domine visualmente
+        # Scale down to avoid thick edges dominating the visual.
         width = min(1.8, max(0.35, base_width * 0.28))
 
-        # Añadimos la arista inversa para controlar duplicadas en grafos dirigidos
+        # Track reverse direction to detect antiparallel edges.
         edges_control.append((edge[1], edge[0]))
 
         edge_traces['trace_' + str(i)] = go.Scatter(
