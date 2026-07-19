@@ -51,36 +51,70 @@ def bh_correction(p_values: list[float], alpha: float = 0.05) -> list[float]:
 # Data loading
 # ---------------------------------------------------------------------------
 
+def _load_matrix(path: str) -> np.ndarray:
+    if path.endswith(".npz"):
+        content = np.load(path)
+        key = next(
+            (k for k in ("connectivity_matrix", "conn", "fc", "arr_0") if k in content),
+            next(k for k in content if content[k].ndim == 2),
+        )
+        return content[key].astype(np.float32)
+    return np.load(path).astype(np.float32)
+
+
 def load_neurocon_matrices(data_dir: str, splits_dir: str, threshold: float):
     """
     Load connectivity matrices for Neurocon subjects only.
+
+    Supports both BRAPHIN directory layout (parkinson_control / parkinson_patient
+    with .npz files in subject subdirectories, identified by "neurocon" prefix)
+    and the flat .npy layout (controls / patients directories with split lists).
 
     Returns:
         controls : list of NetworkX graphs (label=0)
         patients : list of NetworkX graphs (label=1)
     """
-    neurocon_controls, neurocon_patients = set(), set()
-    ctrl_path = os.path.join(splits_dir, "neurocon_controls.txt")
-    pat_path = os.path.join(splits_dir, "neurocon_patients.txt")
-    if os.path.exists(ctrl_path):
-        with open(ctrl_path) as f:
-            neurocon_controls = {line.strip() for line in f if line.strip()}
-    if os.path.exists(pat_path):
-        with open(pat_path) as f:
-            neurocon_patients = {line.strip() for line in f if line.strip()}
+    braphin_mode = os.path.isdir(os.path.join(data_dir, "parkinson_control"))
+    controls: list = []
+    patients: list = []
 
-    def load_group(subdir, neurocon_set):
-        graphs = []
-        folder = os.path.join(data_dir, subdir)
-        for fname in sorted(os.listdir(folder)):
-            if not fname.endswith(".npy") or fname not in neurocon_set:
-                continue
-            matrix = np.load(os.path.join(folder, fname)).astype(np.float32)
-            graphs.append(build_graph_from_matrix(matrix, threshold=threshold))
-        return graphs
+    if braphin_mode:
+        for graphs, folder in [(controls, "parkinson_control"), (patients, "parkinson_patient")]:
+            folder_path = os.path.join(data_dir, folder)
+            for entry in sorted(os.listdir(folder_path)):
+                if not entry.startswith("neurocon"):
+                    continue
+                npz = os.path.join(folder_path, entry, "connectivity_matrix_fmri.npz")
+                if not os.path.isfile(npz):
+                    continue
+                matrix = _load_matrix(npz)
+                if matrix.shape == (116, 116):
+                    graphs.append(build_graph_from_matrix(matrix, threshold=threshold))
+    else:
+        neurocon_controls: set[str] = set()
+        neurocon_patients: set[str] = set()
+        ctrl_path = os.path.join(splits_dir, "neurocon_controls.txt")
+        pat_path = os.path.join(splits_dir, "neurocon_patients.txt")
+        if os.path.exists(ctrl_path):
+            with open(ctrl_path) as f:
+                neurocon_controls = {line.strip() for line in f if line.strip()}
+        if os.path.exists(pat_path):
+            with open(pat_path) as f:
+                neurocon_patients = {line.strip() for line in f if line.strip()}
 
-    controls = load_group("controls", neurocon_controls)
-    patients = load_group("patients", neurocon_patients)
+        for graphs, subdir, neurocon_set in [
+            (controls, "controls", neurocon_controls),
+            (patients, "patients", neurocon_patients),
+        ]:
+            folder = os.path.join(data_dir, subdir)
+            for fname in sorted(os.listdir(folder)):
+                if not (fname.endswith(".npy") or fname.endswith(".npz")):
+                    continue
+                if fname not in neurocon_set:
+                    continue
+                matrix = _load_matrix(os.path.join(folder, fname))
+                graphs.append(build_graph_from_matrix(matrix, threshold=threshold))
+
     return controls, patients
 
 
@@ -159,10 +193,14 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Graph-theoretical analysis of Parkinson vs. Control (Table 3)"
     )
-    p.add_argument("--data_dir", default="data/matrices")
-    p.add_argument("--splits_dir", default="data/splits")
+    p.add_argument("--data_dir", default="data",
+                   help="Root data directory. BRAPHIN layout: contains parkinson_control/ and "
+                        "parkinson_patient/. Flat layout: contains controls/ and patients/ subdirs.")
+    p.add_argument("--splits_dir", default="data/splits",
+                   help="Directory with neurocon_controls.txt and neurocon_patients.txt "
+                        "(only used with flat .npy layout)")
     p.add_argument("--threshold", type=float, default=0.5,
-                   help="Connectivity threshold used during BRAPHIN graph construction")
+                   help="Connectivity threshold for graph construction")
     return p.parse_args()
 
 
