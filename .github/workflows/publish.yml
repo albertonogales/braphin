@@ -47,7 +47,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: publish-pypi
+    needs: build
     runs-on: ubuntu-latest
 
     permissions:
