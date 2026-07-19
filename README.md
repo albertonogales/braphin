@@ -2,10 +2,9 @@
 
 [![Tests](https://github.com/albertonogales/braphin/actions/workflows/tests.yml/badge.svg)](https://github.com/albertonogales/braphin/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/albertonogales/braphin/main/coverage.json)](https://github.com/albertonogales/braphin/actions)
-[![PyPI version](https://badge.fury.io/py/braphin.svg)](https://pypi.org/project/braphin/)
+[![PyPI version](https://img.shields.io/pypi/v/braphin.svg)](https://pypi.org/project/braphin/)
 [![Python versions](https://img.shields.io/pypi/pyversions/braphin.svg)](https://pypi.org/project/braphin/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 
 **BRAPHIN** is a Python library that turns fMRI brain scans into functional connectivity graphs — ready for machine learning and graph neural network analysis.
 
